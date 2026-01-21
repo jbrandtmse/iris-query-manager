@@ -1,0 +1,40 @@
+/**
+ * Design Tokens - CSS Custom Properties
+ * Source: UX Design Specification
+ */
+
+:root {
+  /* Colors */
+  --color-primary: #4285f4;
+  --color-danger: #ea4335;
+  --color-warning: #fbbc04;
+  --color-success: #34a853;
+  --color-text: #202124;
+  --color-text-secondary: #5f6368;
+  --color-bg: #ffffff;
+  --color-border: #dadce0;
+  --color-hover: #e8f0fe;
+  --color-active: #d2e3fc;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+
+  /* Typography */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Consolas', monospace;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+
+  /* Layout */
+  --popup-width: 360px;
+  --popup-max-height: 500px;
+  --header-height: 48px;
+  --tree-item-height: 32px;
+  --icon-button-size: 28px;
+  --border-radius: 4px;
+}

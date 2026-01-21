@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { Query, StorageSchema } from '../types/storage.types'
+import type { Query, Folder, StorageSchema } from '../types/storage.types'
 import {
   getQueries,
   getFolders,

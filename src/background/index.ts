@@ -1,6 +1,8 @@
-import type { MessageType } from '../shared/types/message.types'
+import type { MessageType, MessageResult } from '../shared/types/message.types'
 import { isSmpUrl } from '../shared/utils/url-utils'
 import { setActiveState, setInactiveState } from './icon-state'
+import { sendToContentScript } from '../shared/services/message-service'
+import * as storageService from '../shared/services/storage-service'
 
 console.log('[IRIS Query Manager] Service worker initialized')
 
@@ -83,10 +85,101 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
-    // Future: Handle other message types (CAPTURE_QUERY, etc.)
+    // Handle CAPTURE_QUERY: Orchestrate getting SQL from content script then saving
+    if (message.type === 'CAPTURE_QUERY') {
+      const { name, folderId } = message.payload
+      // Validate name early to provide clear error message
+      if (!name || name.trim() === '') {
+        sendResponse({ success: false, error: 'Query name is required' })
+        return true
+      }
+      handleCaptureQuery(name, folderId ?? null, sendResponse)
+      return true // Async response
+    }
+
+    // Handle GET_QUERIES: Return all queries from storage
+    if (message.type === 'GET_QUERIES') {
+      storageService.getQueries().then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle GET_FOLDERS: Return all folders from storage
+    if (message.type === 'GET_FOLDERS') {
+      storageService.getFolders().then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle DELETE_QUERY: Delete a query by ID
+    if (message.type === 'DELETE_QUERY') {
+      const { id } = message.payload
+      storageService.deleteQuery(id).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle UPDATE_QUERY: Update a query by ID
+    if (message.type === 'UPDATE_QUERY') {
+      const { id, updates } = message.payload
+      storageService.updateQuery(id, updates).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle SAVE_QUERY: Direct save (used internally or by popup with known SQL)
+    if (message.type === 'SAVE_QUERY') {
+      const { name, sql, folderId } = message.payload
+      storageService.saveQuery({ name, sql, folderId: folderId ?? null }).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
     return false
   }
 )
+
+/**
+ * Handle CAPTURE_QUERY message: Get SQL from content script, then save to storage
+ */
+async function handleCaptureQuery(
+  name: string,
+  folderId: string | null,
+  sendResponse: (response: MessageResult<unknown>) => void
+): Promise<void> {
+  // Get active tab
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+  const activeTab = tabs[0]
+  const tabId = activeTab?.id
+
+  if (tabId === undefined) {
+    sendResponse({ success: false, error: 'No active tab found' })
+    return
+  }
+
+  // Get current SQL from content script
+  const sqlResult = await sendToContentScript<string>(tabId, { type: 'GET_CURRENT_SQL' })
+
+  if (!sqlResult.success) {
+    sendResponse({ success: false, error: `Failed to get SQL: ${sqlResult.error}` })
+    return
+  }
+
+  const sql = sqlResult.data
+  if (!sql || sql.trim() === '') {
+    sendResponse({ success: false, error: 'No SQL found in SMP textarea' })
+    return
+  }
+
+  // Save query to storage
+  const saveResult = await storageService.saveQuery({ name, sql, folderId })
+  sendResponse(saveResult)
+}
 
 // Update icon state when user switches to a different tab
 chrome.tabs.onActivated.addListener((activeInfo) => {

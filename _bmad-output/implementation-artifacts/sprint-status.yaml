@@ -51,8 +51,8 @@ development_status:
   # Epic 2: Query Capture & Storage
   epic-2: in-progress
   2-1-implement-storage-service-data-model: done
-  2-2-implement-message-protocol: backlog
-  2-3-create-popup-shell-header: backlog
+  2-2-implement-message-protocol: done
+  2-3-create-popup-shell-header: done
   2-4-implement-capture-form-component: backlog
   2-5-implement-toast-notification-component: backlog
   epic-2-retrospective: optional
