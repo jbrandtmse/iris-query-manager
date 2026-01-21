@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRIS Query Manager - Design Directions</title>
+    <style>
+        :root {
+            --color-primary: #4285f4;
+            --color-danger: #ea4335;
+            --color-warning: #fbbc04;
+            --color-success: #34a853;
+            --color-text: #202124;
+            --color-text-secondary: #5f6368;
+            --color-bg: #ffffff;
+            --color-border: #dadce0;
+            --color-hover: #e8f0fe;
+            --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Consolas', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: #f5f5f5;
+            color: var(--color-text);
+            line-height: 1.5;
+        }
+
+        .page-header {
+            background: white;
+            padding: 24px 32px;
+            border-bottom: 1px solid var(--color-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 4px;
+            margin-top: 16px;
+            border-bottom: 1px solid var(--color-border);
+            padding-bottom: 0;
+        }
+
+        .nav-tab {
+            padding: 8px 16px;
+            border: none;
+            background: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+            transition: all 0.2s;
+        }
+
+        .nav-tab:hover {
+            color: var(--color-primary);
+        }
+
+        .nav-tab.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+        }
+
+        .directions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 32px;
+            padding: 32px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .direction-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .direction-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        .direction-header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .direction-header p {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+        }
+
+        .direction-preview {
+            padding: 24px;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: center;
+        }
+
+        .direction-features {
+            padding: 16px 20px;
+            border-top: 1px solid var(--color-border);
+        }
+
+        .direction-features ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .direction-features li {
+            font-size: 12px;
+            padding: 4px 8px;
+            background: #e8f0fe;
+            color: var(--color-primary);
+            border-radius: 4px;
+        }
+
+        /* ========================================
+           POPUP MOCKUP BASE STYLES
+           ======================================== */
+
+        .popup-mockup {
+            width: 360px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            overflow: hidden;
+            font-size: 13px;
+        }
+
+        .popup-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .popup-title {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .popup-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text-secondary);
+            transition: all 0.15s;
+        }
+
+        .icon-btn:hover {
+            background: var(--color-hover);
+            color: var(--color-primary);
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3367d6;
+        }
+
+        .btn-ghost {
+            background: none;
+            color: var(--color-text-secondary);
+        }
+
+        .btn-ghost:hover {
+            background: var(--color-hover);
+            color: var(--color-primary);
+        }
+
+        /* Tree Styles */
+        .tree {
+            padding: 8px 0;
+        }
+
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 16px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .tree-item:hover {
+            background: var(--color-hover);
+        }
+
+        .tree-item.selected {
+            background: #e8f0fe;
+        }
+
+        .tree-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            color: var(--color-text-secondary);
+        }
+
+        .tree-label {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-children {
+            padding-left: 16px;
+        }
+
+        .folder-icon { color: #fbbc04; }
+        .query-icon { color: var(--color-primary); }
+
+        /* Query Preview */
+        .query-preview {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-top: 1px solid var(--color-border);
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            white-space: pre-wrap;
+            max-height: 80px;
+            overflow: hidden;
+        }
+
+        /* Warning Badge */
+        .warning-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        .warning-badge.danger {
+            background: #fce8e6;
+            color: var(--color-danger);
+        }
+
+        .warning-badge.caution {
+            background: #fef7e0;
+            color: #b06000;
+        }
+
+        /* Search Input */
+        .search-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .search-input:focus {
+            border-color: var(--color-primary);
+        }
+
+        .search-wrapper {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: 32px 16px;
+            text-align: center;
+            color: var(--color-text-secondary);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        /* ========================================
+           DIRECTION 1: MINIMAL CLEAN
+           ======================================== */
+
+        .d1 .popup-header {
+            background: white;
+            padding: 16px 20px;
+        }
+
+        .d1 .tree-item {
+            padding: 10px 20px;
+        }
+
+        .d1 .query-preview {
+            margin: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+            background: white;
+        }
+
+        /* ========================================
+           DIRECTION 2: DENSE PROFESSIONAL
+           ======================================== */
+
+        .d2 .popup-mockup {
+            font-size: 12px;
+        }
+
+        .d2 .popup-header {
+            padding: 8px 12px;
+            background: #f8f9fa;
+        }
+
+        .d2 .tree-item {
+            padding: 4px 12px;
+        }
+
+        .d2 .query-preview {
+            font-size: 10px;
+            padding: 8px 12px;
+            max-height: 60px;
+        }
+
+        /* ========================================
+           DIRECTION 3: CARD-BASED
+           ======================================== */
+
+        .d3 .query-card {
+            margin: 8px 12px;
+            padding: 12px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .d3 .query-card:hover {
+            border-color: var(--color-primary);
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.15);
+        }
+
+        .d3 .query-card-title {
+            font-weight: 500;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .d3 .query-card-preview {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .d3 .folder-header {
+            padding: 8px 12px;
+            font-weight: 500;
+            color: var(--color-text-secondary);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ========================================
+           DIRECTION 4: TWO-PANEL
+           ======================================== */
+
+        .d4 .popup-mockup {
+            width: 420px;
+        }
+
+        .d4 .two-panel {
+            display: flex;
+        }
+
+        .d4 .sidebar {
+            width: 140px;
+            border-right: 1px solid var(--color-border);
+            background: #fafafa;
+        }
+
+        .d4 .sidebar-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .d4 .sidebar-item:hover {
+            background: var(--color-hover);
+        }
+
+        .d4 .sidebar-item.active {
+            background: white;
+            border-right: 2px solid var(--color-primary);
+        }
+
+        .d4 .main-panel {
+            flex: 1;
+        }
+
+        /* ========================================
+           DIRECTION 5: SEARCH-FIRST
+           ======================================== */
+
+        .d5 .search-wrapper {
+            padding: 16px;
+            background: linear-gradient(180deg, #f8f9fa 0%, white 100%);
+        }
+
+        .d5 .search-input {
+            padding: 12px 16px;
+            font-size: 14px;
+            border-radius: 24px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .d5 .recent-header {
+            padding: 12px 16px 8px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--color-text-secondary);
+        }
+
+        /* ========================================
+           DIRECTION 6: ACTION-CENTRIC
+           ======================================== */
+
+        .d6 .action-bar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border);
+            background: #fafafa;
+        }
+
+        .d6 .action-btn {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+        }
+
+        .d6 .action-btn:hover {
+            border-color: var(--color-primary);
+            background: var(--color-hover);
+        }
+
+        .d6 .action-btn svg {
+            width: 20px;
+            height: 20px;
+            margin-bottom: 4px;
+            color: var(--color-primary);
+        }
+
+        .d6 .action-btn span {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* Comparison View */
+        .comparison-section {
+            padding: 32px;
+            background: white;
+            border-top: 1px solid var(--color-border);
+            display: none;
+        }
+
+        .comparison-section.active {
+            display: block;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .comparison-item {
+            text-align: center;
+        }
+
+        .comparison-item h3 {
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Recommendation Badge */
+        .recommended {
+            position: relative;
+        }
+
+        .recommended::after {
+            content: 'RECOMMENDED';
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--color-success);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header class="page-header">
+        <h1>IRIS Query Manager - Design Directions</h1>
+        <p>Explore different visual approaches for the Chrome extension popup. Each direction emphasizes different aspects of the user experience.</p>
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="all">All Directions</button>
+            <button class="nav-tab" data-tab="compare">Side-by-Side</button>
+            <button class="nav-tab" data-tab="states">Interactive States</button>
+        </nav>
+    </header>
+
+    <!-- All Directions Tab -->
+    <div id="tab-all" class="tab-content active">
+        <div class="directions-grid">
+
+            <!-- Direction 1: Minimal Clean -->
+            <div class="direction-card recommended">
+                <div class="direction-header">
+                    <h2>Direction 1: Minimal Clean</h2>
+                    <p>Maximum breathing room, focused on scannability</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d1">
+                        <div class="popup-header">
+                            <span class="popup-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                Query Manager
+                            </span>
+                            <div class="popup-actions">
+                                <button class="icon-btn" title="Capture current query">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item selected">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Get Patient Demographics</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Find Pending Orders</span>
+                                    <span class="warning-badge caution">UPDATE</span>
+                                </div>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Debug Queries</span>
+                            </div>
+                        </div>
+                        <div class="query-preview">SELECT ID, Name, DOB, SSN
+FROM HS_Patient.Patient
+WHERE Facility = ?</div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Generous padding</li>
+                        <li>Clear hierarchy</li>
+                        <li>Inline preview</li>
+                        <li>Chrome-native</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Direction 2: Dense Professional -->
+            <div class="direction-card">
+                <div class="direction-header">
+                    <h2>Direction 2: Dense Professional</h2>
+                    <p>Information-dense for power users with large libraries</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d2">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <div class="popup-actions">
+                                <button class="icon-btn" style="width:24px;height:24px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                                </button>
+                                <button class="icon-btn" style="width:24px;height:24px;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production</span>
+                            </div>
+                            <div class="tree-children" style="padding-left:12px;">
+                                <div class="tree-item selected">
+                                    <svg class="tree-icon query-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Patient Demographics</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Pending Orders</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Active Sessions</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Lock Analysis</span>
+                                </div>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Debug</span>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" style="width:14px;height:14px;" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Reports</span>
+                            </div>
+                        </div>
+                        <div class="query-preview">SELECT ID, Name, DOB FROM Patient WHERE...</div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Compact rows</li>
+                        <li>More visible items</li>
+                        <li>Power user focus</li>
+                        <li>Fast scanning</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Direction 3: Card-Based -->
+            <div class="direction-card">
+                <div class="direction-header">
+                    <h2>Direction 3: Card-Based</h2>
+                    <p>Each query as a distinct card with preview</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d3">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <div class="popup-actions">
+                                <button class="btn btn-primary" style="font-size:12px;padding:4px 10px;">+ Capture</button>
+                            </div>
+                        </div>
+                        <div class="folder-header">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#fbbc04;"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                            Production Queries
+                        </div>
+                        <div class="query-card">
+                            <div class="query-card-title">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4285f4" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                Get Patient Demographics
+                            </div>
+                            <div class="query-card-preview">SELECT ID, Name, DOB FROM HS_Patient.Patient WHERE...</div>
+                        </div>
+                        <div class="query-card">
+                            <div class="query-card-title">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4285f4" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                Find Pending Orders
+                                <span class="warning-badge danger">DELETE</span>
+                            </div>
+                            <div class="query-card-preview">DELETE FROM Orders WHERE Status = 'PENDING'...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Clear boundaries</li>
+                        <li>Inline preview</li>
+                        <li>Touch-friendly</li>
+                        <li>Visual separation</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Direction 4: Two-Panel -->
+            <div class="direction-card">
+                <div class="direction-header">
+                    <h2>Direction 4: Two-Panel Split</h2>
+                    <p>Folders on left, queries on right like email clients</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d4">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <button class="icon-btn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                            </button>
+                        </div>
+                        <div class="two-panel">
+                            <div class="sidebar">
+                                <div class="sidebar-item active">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbc04"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                    Production
+                                </div>
+                                <div class="sidebar-item">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbc04"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                    Debug
+                                </div>
+                                <div class="sidebar-item">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbc04"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                    Reports
+                                </div>
+                            </div>
+                            <div class="main-panel">
+                                <div class="tree">
+                                    <div class="tree-item selected">
+                                        <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                        <span class="tree-label">Patient Demographics</span>
+                                    </div>
+                                    <div class="tree-item">
+                                        <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                        <span class="tree-label">Pending Orders</span>
+                                    </div>
+                                    <div class="tree-item">
+                                        <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                        <span class="tree-label">Active Sessions</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Clear separation</li>
+                        <li>Email-like mental model</li>
+                        <li>Quick folder switch</li>
+                        <li>Wider layout</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Direction 5: Search-First -->
+            <div class="direction-card">
+                <div class="direction-header">
+                    <h2>Direction 5: Search-First</h2>
+                    <p>Prominent search bar for quick query finding</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d5">
+                        <div class="search-wrapper">
+                            <input type="text" class="search-input" placeholder="Search queries..." />
+                        </div>
+                        <div class="recent-header">Recent Queries</div>
+                        <div class="tree">
+                            <div class="tree-item selected">
+                                <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                <span class="tree-label">Get Patient Demographics</span>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                <span class="tree-label">Find Pending Orders</span>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                <span class="tree-label">Active Sessions Query</span>
+                            </div>
+                        </div>
+                        <div class="recent-header" style="margin-top:8px;">Folders</div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Debug Queries</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Instant search</li>
+                        <li>Recent queries prominent</li>
+                        <li>Keyboard-friendly</li>
+                        <li>Future-ready (v1.1)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Direction 6: Action-Centric -->
+            <div class="direction-card">
+                <div class="direction-header">
+                    <h2>Direction 6: Action-Centric</h2>
+                    <p>Big action buttons for common operations</p>
+                </div>
+                <div class="direction-preview">
+                    <div class="popup-mockup d6">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                        </div>
+                        <div class="action-bar">
+                            <div class="action-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                                <span>Capture</span>
+                            </div>
+                            <div class="action-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <span>Import</span>
+                            </div>
+                            <div class="action-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                <span>Export</span>
+                            </div>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item selected">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                                    <span class="tree-label">Patient Demographics</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="direction-features">
+                    <ul>
+                        <li>Discoverable actions</li>
+                        <li>Import/Export visible</li>
+                        <li>Beginner-friendly</li>
+                        <li>Touch-optimized</li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Side-by-Side Comparison Tab -->
+    <div id="tab-compare" class="tab-content">
+        <div class="comparison-section active">
+            <h2 style="text-align:center;margin-bottom:24px;">Key Comparison: Tree vs. Cards vs. Two-Panel</h2>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h3>Direction 1: Minimal Tree</h3>
+                    <div class="popup-mockup d1" style="transform:scale(0.85);transform-origin:top center;">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item selected">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Patient Demographics</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Pending Orders</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <h3>Direction 3: Card-Based</h3>
+                    <div class="popup-mockup d3" style="transform:scale(0.85);transform-origin:top center;">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                        </div>
+                        <div class="folder-header">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#fbbc04"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                            Production
+                        </div>
+                        <div class="query-card">
+                            <div class="query-card-title">Patient Demographics</div>
+                            <div class="query-card-preview">SELECT ID, Name...</div>
+                        </div>
+                        <div class="query-card">
+                            <div class="query-card-title">Pending Orders</div>
+                            <div class="query-card-preview">SELECT * FROM...</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="comparison-item">
+                    <h3>Direction 4: Two-Panel</h3>
+                    <div class="popup-mockup d4" style="transform:scale(0.85);transform-origin:top center;width:380px;">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                        </div>
+                        <div class="two-panel">
+                            <div class="sidebar">
+                                <div class="sidebar-item active">Production</div>
+                                <div class="sidebar-item">Debug</div>
+                            </div>
+                            <div class="main-panel">
+                                <div class="tree">
+                                    <div class="tree-item selected">
+                                        <span class="tree-label">Patient Demographics</span>
+                                    </div>
+                                    <div class="tree-item">
+                                        <span class="tree-label">Pending Orders</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive States Tab -->
+    <div id="tab-states" class="tab-content">
+        <div style="padding:32px;max-width:800px;margin:0 auto;">
+            <h2 style="margin-bottom:24px;">Interactive States - Direction 1 (Recommended)</h2>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px;">
+                <div>
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--color-text-secondary);">Default State</h3>
+                    <div class="popup-mockup d1">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Patient Demographics</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--color-text-secondary);">Selected + Preview</h3>
+                    <div class="popup-mockup d1">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item selected">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Patient Demographics</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="query-preview">SELECT ID, Name, DOB
+FROM HS_Patient.Patient
+WHERE Facility = ?</div>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--color-text-secondary);">Empty State</h3>
+                    <div class="popup-mockup d1">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+                        </div>
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <p style="font-size:14px;margin-bottom:4px;">No queries saved yet</p>
+                            <p style="font-size:12px;">Write a query in SMP and click + to capture it</p>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h3 style="font-size:14px;margin-bottom:12px;color:var(--color-text-secondary);">With Warning Badge</h3>
+                    <div class="popup-mockup d1">
+                        <div class="popup-header">
+                            <span class="popup-title">Query Manager</span>
+                            <button class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+                        </div>
+                        <div class="tree">
+                            <div class="tree-item">
+                                <svg class="tree-icon folder-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                                <span class="tree-label">Production Queries</span>
+                            </div>
+                            <div class="tree-children">
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Cleanup Script</span>
+                                    <span class="warning-badge danger">DELETE</span>
+                                </div>
+                                <div class="tree-item">
+                                    <svg class="tree-icon query-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/></svg>
+                                    <span class="tree-label">Update Status</span>
+                                    <span class="warning-badge caution">UPDATE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active from all tabs
+                document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active to clicked tab
+                tab.classList.add('active');
+                document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Make tree items interactive (demo)
+        document.querySelectorAll('.tree-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const parent = item.closest('.popup-mockup');
+                parent.querySelectorAll('.tree-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+            });
+        });
+    </script>
+</body>
+</html>

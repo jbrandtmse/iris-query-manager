@@ -1,0 +1,46 @@
+{
+  "name": "iris-query-manager",
+  "displayName": "IRIS Query Manager",
+  "version": "0.1.0",
+  "author": "jbrandtmse",
+  "description": "Chrome extension for capturing, organizing, and retrieving SQL queries from InterSystems IRIS System Management Portal",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jbrandtmse/iris-query-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jbrandtmse/iris-query-manager/issues"
+  },
+  "homepage": "https://github.com/jbrandtmse/iris-query-manager#readme",
+  "keywords": [
+    "chrome-extension",
+    "intersystems",
+    "iris",
+    "sql",
+    "query-manager",
+    "typescript",
+    "vite",
+    "manifest-v3"
+  ],
+  "engines": {
+    "node": ">=14.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "fmt": "prettier --write '**/*.{ts,json,css,scss,md}'",
+    "zip": "npm run build && node src/zip.js"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.26",
+    "@types/chrome": "^0.0.246",
+    "gulp": "^5.0.0",
+    "gulp-zip": "^6.0.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.4.10"
+  }
+}

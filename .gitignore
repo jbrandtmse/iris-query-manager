@@ -1,0 +1,56 @@
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+package/
+*.zip
+
+# Testing
+coverage/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+secrets.*.js
+*.pem
+
+# IDE and editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.history/
+*.code-workspace
+
+# AI assistant tool configs
+.agent/
+.claude/
+.clinerules/
+.roo/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional: Uncomment to exclude BMAD working files
+# _bmad-output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
