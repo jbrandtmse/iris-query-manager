@@ -1,7 +1,7 @@
-console.log('background is running')
+console.log('IRIS Query Manager service worker initialized')
 
-chrome.runtime.onMessage.addListener((request) => {
-  if (request.type === 'COUNT') {
-    console.log('background has received a message from popup, and count is ', request?.count)
-  }
+// Message handler placeholder - will be expanded in future stories
+chrome.runtime.onMessage.addListener((_request, _sender, _sendResponse) => {
+  // Future: Handle query capture, storage, and retrieval messages
+  return false
 })

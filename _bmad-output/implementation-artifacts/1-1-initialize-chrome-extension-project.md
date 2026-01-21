@@ -1,6 +1,6 @@
 # Story 1.1: Initialize Chrome Extension Project
 
-Status: review
+Status: done
 
 ## Story
 
@@ -174,6 +174,7 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - `tsconfig.json` - TypeScript configuration
 - `tsconfig.node.json` - TypeScript node configuration
 - `vite.config.ts` - Vite build configuration
+- `vitest.config.ts` - Vitest test configuration (added in code review)
 - `src/background/index.ts` - Service worker
 - `src/contentScript/index.ts` - Content script
 - `src/devtools/index.ts` - DevTools panel script
@@ -189,10 +190,27 @@ Claude Opus 4.5 (claude-opus-4-5-20251101)
 - `src/sidepanel/index.ts` - Side panel script
 - `src/sidepanel/index.css` - Side panel styles
 - `src/zip.js` - Build zip utility
+- `src/shared/types/.gitkeep` - Shared types directory (added in code review)
+- `src/shared/services/.gitkeep` - Shared services directory (added in code review)
+- `src/shared/services/example.test.ts` - Example test to verify Vitest (added in code review)
+- `src/shared/test-utils/.gitkeep` - Test utilities directory (added in code review)
 - `public/icons/` - Extension icons directory
 - `public/img/` - Extension images directory
-- `src/assets/logo.png` - Logo asset
+
+**Modified (Code Review Fixes):**
+- `package.json` - Added Vitest, test scripts
+- `src/manifest.ts` - Replaced @ts-ignore with proper env function
+- `src/popup/index.ts` - Added null check, updated repo link
+- `src/options/index.ts` - Added null check, updated repo link
+- `src/sidepanel/index.ts` - Added null check, updated repo link
+- `src/devtools/index.ts` - Added null check, updated panel name, updated repo link
+- `src/newtab/index.ts` - Removed unused span element, updated repo link
+- `src/background/index.ts` - Added explicit return to message handler
+
+**Removed:**
+- `src/assets/logo.png` - Duplicate asset (already in public/img/)
 
 ## Change Log
 
 - 2026-01-20: Story 1.1 implemented - Chrome extension project initialized with TypeScript, Vite, and Manifest V3
+- 2026-01-20: Code review fixes applied - Added Vitest, shared directory structure, fixed @ts-ignore, null checks, message handler return, removed duplicate assets, updated boilerplate references

@@ -43,7 +43,7 @@ development_status:
   # Epic 1: Project Foundation & SMP Detection
   epic-1: in-progress
   1-1-initialize-chrome-extension-project: review
-  1-2-configure-extension-manifest-service-worker: backlog
+  1-2-configure-extension-manifest-service-worker: review
   1-3-implement-smp-page-detection: backlog
   1-4-extension-icon-state-management: backlog
   epic-1-retrospective: optional
