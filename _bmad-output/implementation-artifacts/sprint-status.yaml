@@ -41,16 +41,16 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # Epic 1: Project Foundation & SMP Detection
-  epic-1: in-progress
-  1-1-initialize-chrome-extension-project: review
-  1-2-configure-extension-manifest-service-worker: review
-  1-3-implement-smp-page-detection: backlog
-  1-4-extension-icon-state-management: backlog
-  epic-1-retrospective: optional
+  epic-1: done
+  1-1-initialize-chrome-extension-project: done
+  1-2-configure-extension-manifest-service-worker: done
+  1-3-implement-smp-page-detection: done
+  1-4-extension-icon-state-management: done
+  epic-1-retrospective: done
 
   # Epic 2: Query Capture & Storage
-  epic-2: backlog
-  2-1-implement-storage-service-data-model: backlog
+  epic-2: in-progress
+  2-1-implement-storage-service-data-model: done
   2-2-implement-message-protocol: backlog
   2-3-create-popup-shell-header: backlog
   2-4-implement-capture-form-component: backlog

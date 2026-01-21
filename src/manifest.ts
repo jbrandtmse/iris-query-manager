@@ -22,4 +22,11 @@ export default defineManifest((env) => ({
   },
   host_permissions: ['*://*/%25CSP.UI.Portal.SQL.Home.zen*'],
   permissions: ['storage', 'activeTab'],
+  content_scripts: [
+    {
+      matches: ['*://*/%25CSP.UI.Portal.SQL.Home.zen*'],
+      js: ['src/contentScript/index.ts'],
+      run_at: 'document_idle',
+    },
+  ],
 }))
