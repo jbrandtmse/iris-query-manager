@@ -3,7 +3,14 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { createTreeView, updateTreeView, selectItem, getSelectedId, cleanup } from './tree-view'
+import {
+  createTreeView,
+  updateTreeView,
+  selectItem,
+  getSelectedId,
+  cleanup,
+  activateSelectedItem,
+} from './tree-view'
 import type { Query, Folder } from '../../shared/types/storage.types'
 
 const mockQueries: Query[] = [
@@ -375,6 +382,197 @@ describe('tree-view', () => {
       cleanup()
 
       expect(getSelectedId()).toBeNull()
+    })
+  })
+
+  describe('Story 3-2: single selection constraint (AC3)', () => {
+    it('should clear previous selection when selecting new item', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders)
+
+      selectItem('1')
+      const firstSelected = tree.querySelectorAll('.tree-item--selected')
+      expect(firstSelected.length).toBe(1)
+      expect(firstSelected[0].getAttribute('data-id')).toBe('1')
+
+      selectItem('2')
+      const secondSelected = tree.querySelectorAll('.tree-item--selected')
+      expect(secondSelected.length).toBe(1)
+      expect(secondSelected[0].getAttribute('data-id')).toBe('2')
+
+      // Verify first item is no longer selected
+      const firstItem = tree.querySelector('[data-id="1"]')
+      expect(firstItem?.classList.contains('tree-item--selected')).toBe(false)
+    })
+
+    it('should update aria-selected=false on previously selected item', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders)
+
+      selectItem('1')
+      selectItem('2')
+
+      const firstItem = tree.querySelector('[data-id="1"]')
+      const secondItem = tree.querySelector('[data-id="2"]')
+
+      expect(firstItem?.getAttribute('aria-selected')).toBe('false')
+      expect(secondItem?.getAttribute('aria-selected')).toBe('true')
+    })
+
+    it('should track selectedId accurately via getSelectedId()', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders)
+
+      expect(getSelectedId()).toBeNull()
+      selectItem('1')
+      expect(getSelectedId()).toBe('1')
+      selectItem('2')
+      expect(getSelectedId()).toBe('2')
+      selectItem(null)
+      expect(getSelectedId()).toBeNull()
+    })
+  })
+
+  describe('Story 3-2: keyboard selection triggers callback (AC4)', () => {
+    it('should trigger onItemSelect on ArrowDown', () => {
+      const onItemSelect = vi.fn()
+      const tree = createTreeView({ onItemSelect })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect })
+
+      selectItem('1')
+      onItemSelect.mockClear() // Clear previous calls
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemSelect).toHaveBeenCalledWith(mockQueries[1])
+    })
+
+    it('should trigger onItemSelect on ArrowUp', () => {
+      const onItemSelect = vi.fn()
+      const tree = createTreeView({ onItemSelect })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect })
+
+      selectItem('2')
+      onItemSelect.mockClear()
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemSelect).toHaveBeenCalledWith(mockQueries[0])
+    })
+
+    it('should trigger onItemSelect on Home key', () => {
+      const onItemSelect = vi.fn()
+      const tree = createTreeView({ onItemSelect })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect })
+
+      selectItem('2')
+      onItemSelect.mockClear()
+
+      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemSelect).toHaveBeenCalledWith(mockQueries[0])
+    })
+
+    it('should trigger onItemSelect on End key', () => {
+      const onItemSelect = vi.fn()
+      const tree = createTreeView({ onItemSelect })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect })
+
+      selectItem('1')
+      onItemSelect.mockClear()
+
+      const event = new KeyboardEvent('keydown', { key: 'End', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemSelect).toHaveBeenCalledWith(mockQueries[1])
+    })
+  })
+
+  describe('Story 3-2: click triggers selection and activation callbacks', () => {
+    it('should trigger onItemSelect callback when item is clicked', () => {
+      const onItemSelect = vi.fn()
+      const tree = createTreeView({ onItemSelect })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect })
+
+      const firstItem = tree.querySelector('[data-id="1"]') as HTMLElement
+      firstItem.click()
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemSelect).toHaveBeenCalledWith(mockQueries[0])
+    })
+
+    it('should trigger onItemActivate callback when item is clicked', () => {
+      const onItemActivate = vi.fn()
+      const tree = createTreeView({ onItemActivate })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemActivate })
+
+      const firstItem = tree.querySelector('[data-id="1"]') as HTMLElement
+      firstItem.click()
+
+      expect(onItemActivate).toHaveBeenCalledTimes(1)
+      expect(onItemActivate).toHaveBeenCalledWith(mockQueries[0])
+    })
+
+    it('should NOT trigger onItemActivate on keyboard navigation (only onItemSelect)', () => {
+      const onItemSelect = vi.fn()
+      const onItemActivate = vi.fn()
+      const tree = createTreeView({ onItemSelect, onItemActivate })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemSelect, onItemActivate })
+
+      selectItem('1')
+      onItemSelect.mockClear()
+
+      // ArrowDown should only trigger onItemSelect, not onItemActivate
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(onItemSelect).toHaveBeenCalledTimes(1)
+      expect(onItemActivate).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Story 3-2: activateSelectedItem', () => {
+    it('should trigger onItemActivate for currently selected item', () => {
+      const onItemActivate = vi.fn()
+      const tree = createTreeView({ onItemActivate })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemActivate })
+
+      selectItem('1')
+
+      activateSelectedItem()
+
+      expect(onItemActivate).toHaveBeenCalledTimes(1)
+      expect(onItemActivate).toHaveBeenCalledWith(mockQueries[0])
+    })
+
+    it('should not trigger onItemActivate when nothing selected', () => {
+      const onItemActivate = vi.fn()
+      const tree = createTreeView({ onItemActivate })
+      document.body.appendChild(tree)
+      updateTreeView(mockQueries, mockFolders, { onItemActivate })
+
+      // No selection
+      activateSelectedItem()
+
+      expect(onItemActivate).not.toHaveBeenCalled()
     })
   })
 })

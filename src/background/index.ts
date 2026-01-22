@@ -140,6 +140,13 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
+    if (message.type === 'PASTE_QUERY') {
+      const { sql } = message.payload
+      handlePasteQuery(sql, sendResponse)
+      return true // Async response
+    }
+
     return false
   }
 )
@@ -230,3 +237,29 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, _tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabSmpStatus.delete(tabId)
 })
+
+/**
+ * Handle PASTE_QUERY message: Send SQL to content script to paste into SMP textarea
+ */
+async function handlePasteQuery(
+  sql: string,
+  sendResponse: (response: MessageResult<unknown>) => void
+): Promise<void> {
+  // Get active tab
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+  const activeTab = tabs[0]
+  const tabId = activeTab?.id
+
+  if (tabId === undefined) {
+    sendResponse({ success: false, error: 'No active tab found' })
+    return
+  }
+
+  // Send paste command to content script
+  const result = await sendToContentScript<null>(tabId, {
+    type: 'PASTE_QUERY',
+    payload: { sql },
+  })
+
+  sendResponse(result)
+}

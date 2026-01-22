@@ -177,4 +177,81 @@ describe('tree-item', () => {
       expect(item.classList.contains('tree-item')).toBe(true)
     })
   })
+
+  describe('Story 3-2: visual specifications', () => {
+    it('should have tree-item class that applies 32px height via CSS (AC1)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      // CSS .tree-item { height: 32px }
+      expect(item.classList.contains('tree-item')).toBe(true)
+    })
+
+    it('should have tree-item--selected class for blue left border when selected (AC2)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: true })
+      // CSS .tree-item--selected { border-left-color: #4285f4 }
+      expect(item.classList.contains('tree-item--selected')).toBe(true)
+    })
+
+    it('should have tree-item__icon class for 16x16px blue icon (AC1)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      const icon = item.querySelector('.tree-item__icon')
+      // CSS .tree-item__icon { width: 16px; height: 16px; color: #4285f4 }
+      expect(icon).not.toBeNull()
+      expect(icon?.classList.contains('tree-item__icon')).toBe(true)
+    })
+
+    it('should have tree-item__name class for text styling (AC1)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      const name = item.querySelector('.tree-item__name')
+      // CSS .tree-item__name { font-size: 13px; overflow: hidden; text-overflow: ellipsis }
+      expect(name).not.toBeNull()
+      expect(name?.classList.contains('tree-item__name')).toBe(true)
+    })
+  })
+
+  describe('Story 3-2: accessibility (AC4)', () => {
+    it('should have role="treeitem" for ARIA tree pattern (6.1)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      expect(item.getAttribute('role')).toBe('treeitem')
+    })
+
+    it('should have aria-selected="true" when selected (6.2)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: true })
+      expect(item.getAttribute('aria-selected')).toBe('true')
+    })
+
+    it('should have aria-selected="false" when not selected (6.2)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      expect(item.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('should have aria-level set correctly for nesting (6.3)', () => {
+      const itemLevel0 = createTreeItem({ query: mockQuery, isSelected: false, level: 0 })
+      const itemLevel1 = createTreeItem({ query: mockQuery, isSelected: false, level: 1 })
+      const itemLevel2 = createTreeItem({ query: mockQuery, isSelected: false, level: 2 })
+
+      // ARIA levels are 1-based
+      expect(itemLevel0.getAttribute('aria-level')).toBe('1')
+      expect(itemLevel1.getAttribute('aria-level')).toBe('2')
+      expect(itemLevel2.getAttribute('aria-level')).toBe('3')
+    })
+
+    it('should be focusable via tabindex for keyboard navigation (6.4)', () => {
+      const item = createTreeItem({ query: mockQuery, isSelected: false })
+      expect(item.getAttribute('tabindex')).toBe('0')
+    })
+
+    it('should support keyboard activation via Enter and Space (6.4)', () => {
+      const onClick = vi.fn()
+      const item = createTreeItem({ query: mockQuery, isSelected: false, onClick })
+      document.body.appendChild(item)
+
+      // Enter key
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(onClick).toHaveBeenCalledTimes(1)
+
+      // Space key
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+      expect(onClick).toHaveBeenCalledTimes(2)
+    })
+  })
 })

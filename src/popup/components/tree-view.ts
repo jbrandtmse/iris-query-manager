@@ -14,6 +14,7 @@ interface TreeViewState {
 export interface TreeViewOptions {
   onItemClick?: TreeItemClickHandler
   onItemSelect?: (query: Query) => void
+  onItemActivate?: (query: Query) => void // Called on Enter/click for paste action
 }
 
 // Module state
@@ -90,8 +91,10 @@ export function updateTreeView(
       onClick: (id) => {
         selectItem(id)
         const selectedQuery = queries.find((q) => q.id === id)
-        if (selectedQuery && currentOptions.onItemSelect) {
-          currentOptions.onItemSelect(selectedQuery)
+        if (selectedQuery) {
+          // Click triggers both selection update and activation (paste)
+          currentOptions.onItemSelect?.(selectedQuery)
+          currentOptions.onItemActivate?.(selectedQuery)
         }
       },
     })
@@ -199,12 +202,26 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       selectItem(newId)
       items[newIndex].focus()
 
-      // Trigger onItemSelect callback
+      // Trigger onItemSelect callback (for selection tracking, NOT paste)
+      // Paste is only triggered by onItemActivate (click or Enter)
       const selectedQuery = currentQueries.find((q) => q.id === newId)
       if (selectedQuery && currentOptions.onItemSelect) {
         currentOptions.onItemSelect(selectedQuery)
       }
     }
+  }
+}
+
+/**
+ * Activate the currently selected item (trigger paste)
+ * Called when user presses Enter on a selected item
+ */
+export function activateSelectedItem(): void {
+  if (!state.selectedId) return
+
+  const selectedQuery = currentQueries.find((q) => q.id === state.selectedId)
+  if (selectedQuery && currentOptions.onItemActivate) {
+    currentOptions.onItemActivate(selectedQuery)
   }
 }
 

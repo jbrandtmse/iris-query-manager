@@ -60,7 +60,7 @@ development_status:
   # Epic 3: Query Library & Retrieval
   epic-3: in-progress
   3-1-implement-tree-view-container: done
-  3-2-implement-tree-item-component-query-variant: backlog
+  3-2-implement-tree-item-component-query-variant: done
   3-3-implement-query-preview-panel: backlog
   3-4-implement-one-click-paste: backlog
   3-5-implement-context-menu-rename-delete: backlog

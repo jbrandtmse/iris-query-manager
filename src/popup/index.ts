@@ -11,9 +11,10 @@ import {
   hideCaptureForm,
 } from './components/capture-form'
 import { showToast } from './components/toast'
-import { createTreeView, updateTreeView, selectItem } from './components/tree-view'
+import { createTreeView, updateTreeView, selectItem, activateSelectedItem } from './components/tree-view'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
+import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
 
 // Module-level references for component access
 let captureFormElement: HTMLDivElement | null = null
@@ -53,10 +54,16 @@ function initializePopup(): void {
   content.className = 'content'
 
   // Create tree view for query library (Story 3-1)
+  // onItemSelect: called on keyboard navigation (selection only, no paste)
+  // onItemActivate: called on click or Enter (triggers paste)
   treeViewElement = createTreeView({
-    onItemSelect: handleQuerySelect,
+    onItemSelect: handleQuerySelectionChange,
+    onItemActivate: handleQueryActivate,
   })
   content.appendChild(treeViewElement)
+
+  // Add Enter key handler for paste activation
+  treeViewElement.addEventListener('keydown', handleTreeViewKeydown)
 
   // Load queries async (does not block initial render for NFR3)
   loadQueriesAndFolders()
@@ -178,17 +185,61 @@ async function loadQueriesAndFolders(): Promise<void> {
   }
 
   updateTreeView(currentQueries, currentFolders, {
-    onItemSelect: handleQuerySelect,
+    onItemSelect: handleQuerySelectionChange,
+    onItemActivate: handleQueryActivate,
   })
 }
 
 /**
- * Handle query selection in tree view
+ * Handle query selection change (keyboard navigation)
+ * Only updates selection state, does NOT trigger paste
  */
-function handleQuerySelect(query: Query): void {
+function handleQuerySelectionChange(query: Query): void {
   selectItem(query.id)
-  // Future: Show preview panel (Story 3-3)
-  console.log('[IRIS Query Manager] Selected query:', query.name)
+  // Selection change only - no paste action
+  // Per UX spec: Up/Down moves selection, Enter pastes
+}
+
+/**
+ * Handle query activation (click or Enter)
+ * Triggers paste to SMP textarea with SQL safety check
+ */
+async function handleQueryActivate(query: Query): Promise<void> {
+  // Check for dangerous SQL before paste (per project-context.md)
+  const safetyCheck = checkSqlSafety(query.sql)
+
+  if (safetyCheck.isDangerous) {
+    const warning = getDangerousSqlWarning(safetyCheck.keyword!)
+    const confirmed = window.confirm(warning)
+    if (!confirmed) {
+      return // User cancelled
+    }
+  }
+
+  // Paste query SQL to SMP textarea (Story 3-2 AC2)
+  const result = await sendToServiceWorker<null>({
+    type: 'PASTE_QUERY',
+    payload: { sql: query.sql },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Show success feedback
+  showToast(`Pasted: ${query.name}`, 'success')
+}
+
+/**
+ * Handle keydown events in tree view
+ * Enter key triggers paste of selected query
+ */
+function handleTreeViewKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    activateSelectedItem()
+  }
 }
 
 // Initialize on DOM ready
