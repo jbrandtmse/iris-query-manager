@@ -93,7 +93,10 @@ chrome.runtime.onMessage.addListener(
         sendResponse({ success: false, error: 'Query name is required' })
         return true
       }
-      handleCaptureQuery(name, folderId ?? null, sendResponse)
+      handleCaptureQuery(name, folderId ?? null, sendResponse).catch((err) => {
+        console.error('[IRIS Query Manager] handleCaptureQuery error:', err)
+        sendResponse({ success: false, error: String(err) })
+      })
       return true // Async response
     }
 
@@ -169,11 +172,30 @@ async function handleCaptureQuery(
     return
   }
 
+  // Check if we have SMP status for this tab (content script must be loaded)
+  const hasSmpStatus = tabSmpStatus.has(tabId)
+  if (!hasSmpStatus) {
+    sendResponse({
+      success: false,
+      error: 'Not on an SMP page. Please navigate to an SMP SQL page and refresh.',
+    })
+    return
+  }
+
   // Get current SQL from content script
   const sqlResult = await sendToContentScript<string>(tabId, { type: 'GET_CURRENT_SQL' })
 
   if (!sqlResult.success) {
-    sendResponse({ success: false, error: `Failed to get SQL: ${sqlResult.error}` })
+    // Provide user-friendly error message for common issues
+    const errorMsg = sqlResult.error
+    if (errorMsg?.includes('Receiving end does not exist') || errorMsg?.includes('message port closed')) {
+      sendResponse({
+        success: false,
+        error: 'Content script not loaded. Please refresh the SMP page and try again.',
+      })
+    } else {
+      sendResponse({ success: false, error: `Failed to get SQL: ${errorMsg}` })
+    }
     return
   }
 
@@ -255,11 +277,33 @@ async function handlePasteQuery(
     return
   }
 
+  // Check if we have SMP status for this tab (content script must be loaded)
+  const hasSmpStatus = tabSmpStatus.has(tabId)
+  if (!hasSmpStatus) {
+    sendResponse({
+      success: false,
+      error: 'Not on an SMP page. Please navigate to an SMP SQL page and refresh.',
+    })
+    return
+  }
+
   // Send paste command to content script
   const result = await sendToContentScript<null>(tabId, {
     type: 'PASTE_QUERY',
     payload: { sql },
   })
+
+  // Provide user-friendly error for common issues
+  if (!result.success) {
+    const errorMsg = result.error
+    if (errorMsg?.includes('Receiving end does not exist') || errorMsg?.includes('message port closed')) {
+      sendResponse({
+        success: false,
+        error: 'Content script not loaded. Please refresh the SMP page and try again.',
+      })
+      return
+    }
+  }
 
   sendResponse(result)
 }

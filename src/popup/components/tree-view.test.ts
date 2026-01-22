@@ -11,6 +11,7 @@ import {
   cleanup,
   activateSelectedItem,
 } from './tree-view'
+import { clearDebounceState } from './tree-item'
 import type { Query, Folder } from '../../shared/types/storage.types'
 
 const mockQueries: Query[] = [
@@ -37,6 +38,7 @@ const mockFolders: Folder[] = []
 describe('tree-view', () => {
   beforeEach(() => {
     cleanup()
+    clearDebounceState() // Clear tree-item debounce state between tests
     document.body.innerHTML = ''
   })
 

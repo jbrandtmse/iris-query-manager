@@ -9,6 +9,19 @@ import { ICONS } from '../icons'
 
 export type TreeItemClickHandler = (id: string) => void
 
+// Debounce delay to prevent double-click from triggering paste twice
+const CLICK_DEBOUNCE_MS = 300
+
+// Track last click time per item to debounce
+const lastClickTime = new Map<string, number>()
+
+/**
+ * Clear debounce state (for testing purposes only)
+ */
+export function clearDebounceState(): void {
+  lastClickTime.clear()
+}
+
 export interface TreeItemOptions {
   query: Query
   isSelected: boolean
@@ -52,15 +65,32 @@ export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
   nameSpan.title = query.name // Tooltip for truncated names
   item.appendChild(nameSpan)
 
-  // Click handler
+  // Click handler with debounce to prevent double-click double-paste
   item.addEventListener('click', () => {
+    const now = Date.now()
+    const lastTime = lastClickTime.get(query.id) ?? 0
+
+    if (now - lastTime < CLICK_DEBOUNCE_MS) {
+      return // Ignore rapid clicks
+    }
+
+    lastClickTime.set(query.id, now)
     onClick?.(query.id)
   })
 
-  // Keyboard handler
+  // Keyboard handler with debounce to prevent rapid key presses
   item.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
+
+      const now = Date.now()
+      const lastTime = lastClickTime.get(query.id) ?? 0
+
+      if (now - lastTime < CLICK_DEBOUNCE_MS) {
+        return // Ignore rapid key presses
+      }
+
+      lastClickTime.set(query.id, now)
       onClick?.(query.id)
     }
   })

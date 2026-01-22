@@ -38,7 +38,7 @@ describe('Manifest Configuration (built output)', () => {
   describe('AC #3: SMP host_permissions', () => {
     it('should have SMP URL pattern in host_permissions', () => {
       expect(manifest.host_permissions).toContain(
-        '*://*/%25CSP.UI.Portal.SQL.Home.zen*'
+        '*://*/*%25CSP.UI.Portal.SQL.Home.zen*'
       )
     })
 

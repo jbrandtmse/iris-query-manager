@@ -62,7 +62,7 @@ development_status:
   3-1-implement-tree-view-container: done
   3-2-implement-tree-item-component-query-variant: done
   3-3-implement-query-preview-panel: done
-  3-4-implement-one-click-paste: backlog
+  3-4-implement-one-click-paste: done
   3-5-implement-context-menu-rename-delete: backlog
   3-6-display-query-metadata: backlog
   epic-3-retrospective: optional

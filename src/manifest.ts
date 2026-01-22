@@ -20,11 +20,11 @@ export default defineManifest((env) => ({
     service_worker: 'src/background/index.ts',
     type: 'module',
   },
-  host_permissions: ['*://*/%25CSP.UI.Portal.SQL.Home.zen*'],
+  host_permissions: ['*://*/*%25CSP.UI.Portal.SQL.Home.zen*'],
   permissions: ['storage', 'activeTab'],
   content_scripts: [
     {
-      matches: ['*://*/%25CSP.UI.Portal.SQL.Home.zen*'],
+      matches: ['*://*/*%25CSP.UI.Portal.SQL.Home.zen*'],
       js: ['src/contentScript/index.ts'],
       run_at: 'document_idle',
     },

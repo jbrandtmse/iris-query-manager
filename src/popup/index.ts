@@ -204,6 +204,16 @@ function handleQuerySelectionChange(query: Query): void {
  * Triggers paste to SMP textarea with SQL safety check
  */
 async function handleQueryActivate(query: Query): Promise<void> {
+  // Check SMP availability BEFORE attempting paste (Story 3-4 AC4)
+  const statusResult = await sendToServiceWorker<{ available: boolean }>({
+    type: 'GET_SMP_STATUS',
+  })
+
+  if (!statusResult.success || !statusResult.data.available) {
+    showToast('SMP textarea not detected on this page', 'error')
+    return
+  }
+
   // Check for dangerous SQL before paste (per project-context.md)
   const safetyCheck = checkSqlSafety(query.sql)
 

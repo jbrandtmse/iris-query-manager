@@ -2,8 +2,8 @@
  * Tree Item Component Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { createTreeItem } from './tree-item'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { createTreeItem, clearDebounceState } from './tree-item'
 import type { Query } from '../../shared/types/storage.types'
 
 const mockQuery: Query = {
@@ -18,6 +18,7 @@ const mockQuery: Query = {
 describe('tree-item', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
+    clearDebounceState() // Clear debounce state between tests
   })
 
   describe('createTreeItem', () => {
@@ -241,17 +242,95 @@ describe('tree-item', () => {
     })
 
     it('should support keyboard activation via Enter and Space (6.4)', () => {
+      vi.useFakeTimers()
+      try {
+        const onClick = vi.fn()
+        const item = createTreeItem({ query: mockQuery, isSelected: false, onClick })
+        document.body.appendChild(item)
+
+        // Enter key
+        item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+        expect(onClick).toHaveBeenCalledTimes(1)
+
+        // Wait for debounce window to expire (300ms)
+        vi.advanceTimersByTime(350)
+
+        // Space key
+        item.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+        expect(onClick).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('Story 3-4: click debounce (AC2.3)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should debounce rapid clicks to prevent double-paste', () => {
       const onClick = vi.fn()
       const item = createTreeItem({ query: mockQuery, isSelected: false, onClick })
       document.body.appendChild(item)
 
-      // Enter key
+      // First click should trigger
+      item.click()
+      expect(onClick).toHaveBeenCalledTimes(1)
+
+      // Rapid second click (within 300ms) should be ignored
+      vi.advanceTimersByTime(100)
+      item.click()
+      expect(onClick).toHaveBeenCalledTimes(1)
+
+      // Click after debounce window should trigger
+      vi.advanceTimersByTime(300)
+      item.click()
+      expect(onClick).toHaveBeenCalledTimes(2)
+    })
+
+    it('should debounce rapid Enter key presses', () => {
+      const onClick = vi.fn()
+      const item = createTreeItem({ query: mockQuery, isSelected: false, onClick })
+      document.body.appendChild(item)
+
+      // First Enter should trigger
       item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
       expect(onClick).toHaveBeenCalledTimes(1)
 
-      // Space key
-      item.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }))
+      // Rapid second Enter (within 300ms) should be ignored
+      vi.advanceTimersByTime(100)
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+      expect(onClick).toHaveBeenCalledTimes(1)
+
+      // Enter after debounce window should trigger
+      vi.advanceTimersByTime(300)
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
       expect(onClick).toHaveBeenCalledTimes(2)
+    })
+
+    it('should allow different items to trigger immediately', () => {
+      const onClick1 = vi.fn()
+      const onClick2 = vi.fn()
+
+      const query2: Query = { ...mockQuery, id: 'different-id' }
+
+      const item1 = createTreeItem({ query: mockQuery, isSelected: false, onClick: onClick1 })
+      const item2 = createTreeItem({ query: query2, isSelected: false, onClick: onClick2 })
+      document.body.appendChild(item1)
+      document.body.appendChild(item2)
+
+      // Click item1
+      item1.click()
+      expect(onClick1).toHaveBeenCalledTimes(1)
+
+      // Immediately click item2 - should work (different item)
+      item2.click()
+      expect(onClick2).toHaveBeenCalledTimes(1)
     })
   })
 })
