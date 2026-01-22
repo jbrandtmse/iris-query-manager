@@ -12,6 +12,7 @@ import {
 } from './components/capture-form'
 import { showToast } from './components/toast'
 import { createTreeView, updateTreeView, selectItem, activateSelectedItem } from './components/tree-view'
+import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
@@ -68,10 +69,8 @@ function initializePopup(): void {
   // Load queries async (does not block initial render for NFR3)
   loadQueriesAndFolders()
 
-  // Create preview panel (hidden by default, for future stories)
-  const previewPanel = document.createElement('footer')
-  previewPanel.className = 'preview-panel'
-  previewPanel.hidden = true
+  // Create preview panel (Story 3-3)
+  const previewPanel = createQueryPreview()
 
   // Assemble popup: header → capture form → content → preview
   popup.appendChild(header)
@@ -192,12 +191,12 @@ async function loadQueriesAndFolders(): Promise<void> {
 
 /**
  * Handle query selection change (keyboard navigation)
- * Only updates selection state, does NOT trigger paste
+ * Updates selection state and preview panel, does NOT trigger paste
  */
 function handleQuerySelectionChange(query: Query): void {
   selectItem(query.id)
-  // Selection change only - no paste action
-  // Per UX spec: Up/Down moves selection, Enter pastes
+  // Update preview panel with selected query's SQL (Story 3-3)
+  updateQueryPreview(query.sql)
 }
 
 /**

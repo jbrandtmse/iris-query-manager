@@ -77,15 +77,7 @@ body {
   font-size: var(--font-size-sm);
 }
 
-/* Preview Panel (hidden by default, for future stories) */
-.preview-panel {
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.preview-panel[hidden] {
-  display: none;
-}
+/* Note: Preview panel styles are now in components/query-preview.css (Story 3-3) */
 
 /* Accessibility */
 :focus-visible {

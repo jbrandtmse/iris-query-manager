@@ -1,0 +1,27 @@
+/**
+ * Query Preview Panel Styles
+ * Displays SQL preview with monospace font, scrollable within 80px max-height
+ */
+
+.query-preview {
+  background-color: #f8f9fa;
+  border-top: 1px solid var(--color-border, #dadce0);
+  max-height: 80px;
+  overflow-y: auto;
+  padding: var(--space-sm, 8px);
+  flex-shrink: 0;
+}
+
+.query-preview--hidden {
+  display: none;
+}
+
+.query-preview__content {
+  font-family: var(--font-mono, 'SF Mono', Monaco, monospace);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text, #202124);
+}
