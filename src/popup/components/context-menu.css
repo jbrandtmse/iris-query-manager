@@ -1,0 +1,47 @@
+/**
+ * Context Menu Component Styles
+ * Matches UX spec: 160px width, shadow, positioned at click point
+ */
+
+.context-menu {
+  position: fixed;
+  width: 160px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  padding: var(--space-xs) 0;
+  outline: none;
+}
+
+.context-menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+}
+
+.context-menu__item:hover,
+.context-menu__item--focused {
+  background: var(--color-hover);
+}
+
+.context-menu__item:focus {
+  outline: none;
+}
+
+.context-menu__item--danger {
+  color: var(--color-danger);
+}
+
+.context-menu__item--danger:hover,
+.context-menu__item--danger.context-menu__item--focused {
+  background: rgba(234, 67, 53, 0.1);
+}

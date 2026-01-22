@@ -22,18 +22,21 @@ export function clearDebounceState(): void {
   lastClickTime.clear()
 }
 
+export type TreeItemContextMenuHandler = (id: string, x: number, y: number) => void
+
 export interface TreeItemOptions {
   query: Query
   isSelected: boolean
   level?: number
   onClick?: TreeItemClickHandler
+  onContextMenu?: TreeItemContextMenuHandler
 }
 
 /**
  * Create a tree item element for a query
  */
 export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
-  const { query, isSelected, level = 0, onClick } = options
+  const { query, isSelected, level = 0, onClick, onContextMenu } = options
 
   const item = document.createElement('div')
   item.className = 'tree-item tree-item--query'
@@ -93,6 +96,12 @@ export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
       lastClickTime.set(query.id, now)
       onClick?.(query.id)
     }
+  })
+
+  // Context menu handler (right-click)
+  item.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+    onContextMenu?.(query.id, e.clientX, e.clientY)
   })
 
   return item

@@ -5,7 +5,7 @@
 
 import './tree-view.css'
 import type { Query, Folder } from '../../shared/types/storage.types'
-import { createTreeItem, type TreeItemClickHandler } from './tree-item'
+import { createTreeItem, type TreeItemClickHandler, type TreeItemContextMenuHandler } from './tree-item'
 
 interface TreeViewState {
   selectedId: string | null
@@ -15,6 +15,7 @@ export interface TreeViewOptions {
   onItemClick?: TreeItemClickHandler
   onItemSelect?: (query: Query) => void
   onItemActivate?: (query: Query) => void // Called on Enter/click for paste action
+  onItemContextMenu?: TreeItemContextMenuHandler // Called on right-click
 }
 
 // Module state
@@ -97,6 +98,7 @@ export function updateTreeView(
           currentOptions.onItemActivate?.(selectedQuery)
         }
       },
+      onContextMenu: currentOptions.onItemContextMenu,
     })
     list.appendChild(item)
   })

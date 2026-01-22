@@ -12,6 +12,7 @@ import {
 } from './components/capture-form'
 import { showToast } from './components/toast'
 import { createTreeView, updateTreeView, selectItem, activateSelectedItem } from './components/tree-view'
+import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
@@ -57,9 +58,11 @@ function initializePopup(): void {
   // Create tree view for query library (Story 3-1)
   // onItemSelect: called on keyboard navigation (selection only, no paste)
   // onItemActivate: called on click or Enter (triggers paste)
+  // onItemContextMenu: called on right-click (Story 3-5)
   treeViewElement = createTreeView({
     onItemSelect: handleQuerySelectionChange,
     onItemActivate: handleQueryActivate,
+    onItemContextMenu: handleQueryContextMenu,
   })
   content.appendChild(treeViewElement)
 
@@ -186,6 +189,7 @@ async function loadQueriesAndFolders(): Promise<void> {
   updateTreeView(currentQueries, currentFolders, {
     onItemSelect: handleQuerySelectionChange,
     onItemActivate: handleQueryActivate,
+    onItemContextMenu: handleQueryContextMenu,
   })
 }
 
@@ -249,6 +253,119 @@ function handleTreeViewKeydown(e: KeyboardEvent): void {
     e.preventDefault()
     activateSelectedItem()
   }
+}
+
+/**
+ * Handle context menu request from tree item (right-click)
+ * Shows context menu with Paste, Rename and Delete options (Story 3-5)
+ */
+function handleQueryContextMenu(queryId: string, x: number, y: number): void {
+  const query = currentQueries.find((q) => q.id === queryId)
+  if (!query) return
+
+  // Find the trigger element for focus return (accessibility)
+  const triggerElement = treeViewElement?.querySelector(
+    `[data-id="${queryId}"]`
+  ) as HTMLElement | null
+
+  // Close any existing context menu first
+  hideContextMenu()
+
+  showContextMenu({
+    x,
+    y,
+    items: [
+      { label: 'Paste', action: 'paste' },
+      { label: 'Rename', action: 'rename' },
+      { label: 'Delete', action: 'delete', danger: true },
+    ],
+    onSelect: (action) => {
+      if (action === 'paste') {
+        handleQueryActivate(query)
+      } else if (action === 'rename') {
+        handleRenameQuery(query)
+      } else if (action === 'delete') {
+        handleDeleteQuery(query)
+      }
+    },
+    triggerElement: triggerElement ?? undefined,
+  })
+}
+
+/**
+ * Handle rename query action
+ * Shows prompt dialog and updates query name via service worker
+ */
+async function handleRenameQuery(query: Query): Promise<void> {
+  const newName = window.prompt('Enter new name:', query.name)
+
+  // Handle cancel or empty input
+  if (newName === null) {
+    return // User cancelled
+  }
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    showToast('Name cannot be empty', 'error')
+    return
+  }
+
+  // Skip if name unchanged
+  if (trimmedName === query.name) {
+    return
+  }
+
+  // Send UPDATE_QUERY to service worker
+  const result = await sendToServiceWorker<Query>({
+    type: 'UPDATE_QUERY',
+    payload: { id: query.id, updates: { name: trimmedName } },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Show success feedback
+  showToast(`Renamed to: ${trimmedName}`, 'success')
+
+  // Refresh tree view with updated query
+  await loadQueriesAndFolders()
+}
+
+/**
+ * Handle delete query action
+ * Shows confirmation dialog and removes query via service worker
+ */
+async function handleDeleteQuery(query: Query): Promise<void> {
+  const confirmed = window.confirm(`Delete "${query.name}"?\n\nThis cannot be undone.`)
+
+  if (!confirmed) {
+    return // User cancelled
+  }
+
+  // Send DELETE_QUERY to service worker
+  const result = await sendToServiceWorker<void>({
+    type: 'DELETE_QUERY',
+    payload: { id: query.id },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Show success feedback
+  showToast(`Deleted: ${query.name}`, 'success')
+
+  // Clear selection if deleted query was selected
+  const selectedId = currentQueries.find((q) => q.id === query.id)?.id
+  if (selectedId) {
+    selectItem(null)
+  }
+
+  // Refresh tree view
+  await loadQueriesAndFolders()
 }
 
 // Initialize on DOM ready

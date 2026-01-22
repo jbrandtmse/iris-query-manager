@@ -1,6 +1,7 @@
 /**
  * Popup Index Tests
  * Tests for query activation and paste flow (Story 3-4)
+ * Tests for rename/delete flows (Story 3-5)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -282,6 +283,260 @@ describe('Story 3-4: handleQueryActivate paste flow', () => {
       await handleQueryActivate(query)
 
       expect(checkSqlSafety).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('Story 3-5: handleRenameQuery flow', () => {
+  // Simplified version of handleRenameQuery for testing
+  async function handleRenameQuery(
+    query: Query,
+    promptResult: string | null
+  ): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    // Handle cancel or empty input
+    if (promptResult === null) {
+      return // User cancelled
+    }
+
+    const trimmedName = promptResult.trim()
+    if (!trimmedName) {
+      mockedShowToast('Name cannot be empty', 'error')
+      return
+    }
+
+    // Skip if name unchanged
+    if (trimmedName === query.name) {
+      return
+    }
+
+    // Send UPDATE_QUERY to service worker
+    const result = (await mockedSendToServiceWorker({
+      type: 'UPDATE_QUERY',
+      payload: { id: query.id, updates: { name: trimmedName } },
+    })) as MessageResult<Query>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    // Show success feedback
+    mockedShowToast(`Renamed to: ${trimmedName}`, 'success')
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('rename validation (AC2)', () => {
+    it('should do nothing when user cancels prompt', async () => {
+      const query = createMockQuery()
+
+      await handleRenameQuery(query, null)
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+
+    it('should show error toast for empty name', async () => {
+      const query = createMockQuery()
+
+      await handleRenameQuery(query, '   ')
+
+      expect(showToast).toHaveBeenCalledWith('Name cannot be empty', 'error')
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+    })
+
+    it('should skip update if name unchanged', async () => {
+      const query = createMockQuery({ name: 'Original Name' })
+
+      await handleRenameQuery(query, 'Original Name')
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+
+    it('should trim whitespace from name', async () => {
+      const query = createMockQuery()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...query, name: 'Trimmed Name' },
+      })
+
+      await handleRenameQuery(query, '  Trimmed Name  ')
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'UPDATE_QUERY',
+        payload: { id: query.id, updates: { name: 'Trimmed Name' } },
+      })
+    })
+  })
+
+  describe('rename operation (AC2)', () => {
+    it('should call UPDATE_QUERY with correct data', async () => {
+      const query = createMockQuery({ id: 'query-123', name: 'Old Name' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...query, name: 'New Name' },
+      })
+
+      await handleRenameQuery(query, 'New Name')
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'UPDATE_QUERY',
+        payload: { id: 'query-123', updates: { name: 'New Name' } },
+      })
+    })
+
+    it('should show success toast after rename', async () => {
+      const query = createMockQuery()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...query, name: 'New Query Name' },
+      })
+
+      await handleRenameQuery(query, 'New Query Name')
+
+      expect(showToast).toHaveBeenCalledWith('Renamed to: New Query Name', 'success')
+    })
+
+    it('should show error toast when rename fails', async () => {
+      const query = createMockQuery()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Query not found',
+      })
+
+      await handleRenameQuery(query, 'New Name')
+
+      expect(showToast).toHaveBeenCalledWith('Query not found', 'error')
+    })
+  })
+})
+
+describe('Story 3-5: handleDeleteQuery flow', () => {
+  // Simplified version of handleDeleteQuery for testing
+  async function handleDeleteQuery(
+    query: Query,
+    confirmed: boolean,
+    currentSelectedId: string | null = null
+  ): Promise<{ clearedSelection: boolean }> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    if (!confirmed) {
+      return { clearedSelection: false }
+    }
+
+    // Send DELETE_QUERY to service worker
+    const result = (await mockedSendToServiceWorker({
+      type: 'DELETE_QUERY',
+      payload: { id: query.id },
+    })) as MessageResult<void>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return { clearedSelection: false }
+    }
+
+    // Show success feedback
+    mockedShowToast(`Deleted: ${query.name}`, 'success')
+
+    // Clear selection if deleted query was selected
+    const clearedSelection = currentSelectedId === query.id
+
+    return { clearedSelection }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('delete confirmation (AC3)', () => {
+    it('should do nothing when user cancels confirmation', async () => {
+      const query = createMockQuery()
+
+      await handleDeleteQuery(query, false)
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('delete operation (AC3)', () => {
+    it('should call DELETE_QUERY with correct id', async () => {
+      const query = createMockQuery({ id: 'delete-me-123' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      await handleDeleteQuery(query, true)
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'DELETE_QUERY',
+        payload: { id: 'delete-me-123' },
+      })
+    })
+
+    it('should show success toast with query name after delete', async () => {
+      const query = createMockQuery({ name: 'My Deleted Query' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      await handleDeleteQuery(query, true)
+
+      expect(showToast).toHaveBeenCalledWith('Deleted: My Deleted Query', 'success')
+    })
+
+    it('should show error toast when delete fails', async () => {
+      const query = createMockQuery()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Storage error',
+      })
+
+      await handleDeleteQuery(query, true)
+
+      expect(showToast).toHaveBeenCalledWith('Storage error', 'error')
+    })
+
+    it('should clear selection when deleted query was selected', async () => {
+      const query = createMockQuery({ id: 'selected-query' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      const result = await handleDeleteQuery(query, true, 'selected-query')
+
+      expect(result.clearedSelection).toBe(true)
+    })
+
+    it('should NOT clear selection when different query was selected', async () => {
+      const query = createMockQuery({ id: 'deleted-query' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      const result = await handleDeleteQuery(query, true, 'other-query')
+
+      expect(result.clearedSelection).toBe(false)
     })
   })
 })

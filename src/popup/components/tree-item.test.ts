@@ -333,4 +333,83 @@ describe('tree-item', () => {
       expect(onClick2).toHaveBeenCalledTimes(1)
     })
   })
+
+  describe('Story 3-5: context menu (right-click)', () => {
+    it('should call onContextMenu on right-click', () => {
+      const onContextMenu = vi.fn()
+      const item = createTreeItem({
+        query: mockQuery,
+        isSelected: false,
+        onContextMenu,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 150,
+        clientY: 200,
+        bubbles: true,
+      })
+      item.dispatchEvent(event)
+
+      expect(onContextMenu).toHaveBeenCalledWith('test-id-123', 150, 200)
+    })
+
+    it('should prevent default browser context menu', () => {
+      const onContextMenu = vi.fn()
+      const item = createTreeItem({
+        query: mockQuery,
+        isSelected: false,
+        onContextMenu,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+        cancelable: true,
+      })
+
+      const preventDefault = vi.spyOn(event, 'preventDefault')
+      item.dispatchEvent(event)
+
+      expect(preventDefault).toHaveBeenCalled()
+    })
+
+    it('should pass correct coordinates to onContextMenu', () => {
+      const onContextMenu = vi.fn()
+      const item = createTreeItem({
+        query: mockQuery,
+        isSelected: false,
+        onContextMenu,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 250,
+        clientY: 350,
+        bubbles: true,
+      })
+      item.dispatchEvent(event)
+
+      expect(onContextMenu).toHaveBeenCalledWith('test-id-123', 250, 350)
+    })
+
+    it('should not throw if onContextMenu is not provided', () => {
+      const item = createTreeItem({
+        query: mockQuery,
+        isSelected: false,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      })
+
+      // Should not throw
+      expect(() => item.dispatchEvent(event)).not.toThrow()
+    })
+  })
 })
