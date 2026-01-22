@@ -53,13 +53,13 @@ development_status:
   2-1-implement-storage-service-data-model: done
   2-2-implement-message-protocol: done
   2-3-create-popup-shell-header: done
-  2-4-implement-capture-form-component: backlog
-  2-5-implement-toast-notification-component: backlog
+  2-4-implement-capture-form-component: done
+  2-5-implement-toast-notification-component: done
   epic-2-retrospective: optional
 
   # Epic 3: Query Library & Retrieval
-  epic-3: backlog
-  3-1-implement-tree-view-container: backlog
+  epic-3: in-progress
+  3-1-implement-tree-view-container: done
   3-2-implement-tree-item-component-query-variant: backlog
   3-3-implement-query-preview-panel: backlog
   3-4-implement-one-click-paste: backlog

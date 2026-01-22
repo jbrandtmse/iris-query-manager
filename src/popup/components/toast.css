@@ -1,0 +1,125 @@
+/**
+ * Toast Component Styles
+ * BEM naming convention: .toast, .toast__element, .toast--modifier
+ */
+
+/* Toast container - sits at top, below header */
+.toast-container {
+  position: fixed;
+  top: 48px; /* Below header (40px) + 8px spacing */
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Base toast styles */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-xs, 4px) var(--space-md, 16px);
+  border-radius: var(--border-radius, 4px);
+  height: 32px;
+  font-size: var(--font-size-sm, 12px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 200ms ease-out, visibility 200ms ease-out, transform 200ms ease-out;
+  pointer-events: auto;
+}
+
+/* Visible state */
+.toast--visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Hiding animation state - uses different timing for dismiss */
+.toast--hiding {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 300ms ease-in, visibility 300ms ease-in, transform 300ms ease-in;
+  /* visibility stays visible during fade */
+}
+
+/* Success variant */
+.toast--success {
+  background: #e6f4ea;
+  color: #137333;
+}
+
+/* Error variant */
+.toast--error {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
+/* Info variant */
+.toast--info {
+  background: #e8f0fe;
+  color: #1967d2;
+}
+
+/* Warning variant */
+.toast--warning {
+  background: #fef7e0;
+  color: #b45309;
+}
+
+/* Icon element */
+.toast__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.toast__icon svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Message text */
+.toast__message {
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Dismiss button (error toasts only) */
+.toast__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  margin-left: var(--space-xs);
+  border-radius: 2px;
+}
+
+.toast__dismiss:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.toast__dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast--hiding {
+    transition: none;
+    transform: none;
+  }
+}

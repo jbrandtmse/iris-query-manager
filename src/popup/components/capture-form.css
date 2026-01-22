@@ -1,0 +1,176 @@
+/**
+ * Capture Form Component Styles
+ * Inline panel that slides down from header
+ */
+
+/* Form Container */
+.capture-form {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  display: none;
+}
+
+.capture-form--visible {
+  display: block;
+  animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Field Layout */
+.capture-form__field {
+  margin-bottom: var(--space-sm);
+}
+
+.capture-form__label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+/* Input Styles */
+.capture-form__input,
+.capture-form__dropdown {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.capture-form__input:focus,
+.capture-form__dropdown:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.capture-form__input--error {
+  border-color: var(--color-danger);
+}
+
+.capture-form__input--error:focus {
+  border-color: var(--color-danger);
+}
+
+/* Error Message */
+.capture-form__error {
+  display: none;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-xs);
+}
+
+.capture-form__error:not([hidden]) {
+  display: block;
+}
+
+/* Form-level Error */
+.capture-form__form-error {
+  display: none;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  padding: var(--space-sm);
+  background: #fce8e6;
+  border-radius: var(--border-radius);
+  margin-bottom: var(--space-sm);
+}
+
+.capture-form__form-error:not([hidden]) {
+  display: block;
+}
+
+/* Actions */
+.capture-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* Button Styles */
+.btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  min-width: 64px;
+  transition: background-color 0.15s ease;
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: white;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #3367d6;
+}
+
+.btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.btn--secondary:hover {
+  background: var(--color-hover);
+}
+
+/* Loading State */
+.btn--loading {
+  position: relative;
+  color: transparent;
+}
+
+.btn--loading::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  left: 50%;
+  margin: -8px 0 0 -8px;
+  border: 2px solid white;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .capture-form--visible {
+    animation: none;
+  }
+
+  .btn--loading::after {
+    animation: none;
+  }
+}

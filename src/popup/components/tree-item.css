@@ -1,0 +1,73 @@
+/**
+ * Tree Item Styles
+ */
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 var(--space-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+  border-left: 2px solid transparent;
+  transition: background-color 150ms ease;
+}
+
+.tree-item:hover {
+  background-color: var(--color-hover, #e8f0fe);
+}
+
+.tree-item--selected {
+  background-color: var(--color-hover, #e8f0fe);
+  border-left-color: var(--color-primary, #4285f4);
+}
+
+.tree-item:focus-visible {
+  outline: 2px solid var(--color-primary, #4285f4);
+  outline-offset: -2px;
+}
+
+.tree-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: var(--space-sm, 8px);
+  color: var(--color-primary, #4285f4);
+}
+
+.tree-item__icon svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.tree-item__name {
+  flex: 1;
+  font-size: var(--font-size-sm, 13px);
+  color: var(--color-text, #202124);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Indent for nesting (future folder support) */
+.tree-item[data-level="1"] {
+  padding-left: calc(var(--space-sm, 8px) + 16px);
+}
+
+.tree-item[data-level="2"] {
+  padding-left: calc(var(--space-sm, 8px) + 32px);
+}
+
+.tree-item[data-level="3"] {
+  padding-left: calc(var(--space-sm, 8px) + 48px);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .tree-item {
+    transition: none;
+  }
+}

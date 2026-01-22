@@ -1,0 +1,37 @@
+/**
+ * Tree View Container Styles
+ */
+
+.tree-view {
+  flex: 1;
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tree-view__list {
+  padding: var(--space-xs, 4px) 0;
+}
+
+/* Empty State */
+.tree-view__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg, 24px);
+  text-align: center;
+  min-height: 200px;
+}
+
+.tree-view__empty-message {
+  color: var(--color-text, #202124);
+  font-size: var(--font-size-base, 14px);
+  margin: 0 0 var(--space-sm, 8px) 0;
+}
+
+.tree-view__empty-hint {
+  color: var(--color-text-secondary, #5f6368);
+  font-size: var(--font-size-sm, 13px);
+  margin: 0;
+}
