@@ -70,8 +70,8 @@ development_status:
   # Epic 4: Folder Organization
   epic-4: in-progress
   4-1-implement-tree-item-component-folder-variant: done
-  4-2-implement-create-folder-functionality: backlog
-  4-3-implement-folder-rename-delete: backlog
+  4-2-implement-create-folder-functionality: done
+  4-3-implement-folder-rename-delete: done
   4-4-implement-drag-drop-queries: backlog
   4-5-implement-drag-drop-folders: backlog
   epic-4-retrospective: optional

@@ -46,11 +46,12 @@ describe('header', () => {
       expect(actions).not.toBeNull()
     })
 
-    it('should have two icon buttons in actions', () => {
+    it('should have three icon buttons in actions', () => {
       const header = createHeader()
       const buttons = header.querySelectorAll('.icon-button')
 
-      expect(buttons).toHaveLength(2)
+      // Capture, New Folder, and Menu buttons
+      expect(buttons).toHaveLength(3)
     })
 
     describe('capture button', () => {
@@ -132,13 +133,57 @@ describe('header', () => {
       })
     })
 
+    describe('new folder button (Story 4-2)', () => {
+      it('should have js-new-folder-btn class', () => {
+        const header = createHeader()
+        const newFolderBtn = header.querySelector('.js-new-folder-btn')
+
+        expect(newFolderBtn).not.toBeNull()
+      })
+
+      it('should have aria-label "Create new folder"', () => {
+        const header = createHeader()
+        const newFolderBtn = header.querySelector('.js-new-folder-btn')
+
+        expect(newFolderBtn?.getAttribute('aria-label')).toBe('Create new folder')
+      })
+
+      it('should contain folder-plus SVG icon', () => {
+        const header = createHeader()
+        const newFolderBtn = header.querySelector('.js-new-folder-btn')
+        const svg = newFolderBtn?.querySelector('svg')
+
+        expect(svg).not.toBeNull()
+        // Folder-plus icon has path for folder and lines for plus
+        expect(newFolderBtn?.innerHTML).toContain('path')
+      })
+
+      it('should call onNewFolderClick when clicked', () => {
+        const onNewFolderClick = vi.fn()
+        const header = createHeader({ onNewFolderClick })
+        const newFolderBtn = header.querySelector('.js-new-folder-btn') as HTMLButtonElement
+
+        newFolderBtn.click()
+
+        expect(onNewFolderClick).toHaveBeenCalledTimes(1)
+      })
+
+      it('should not throw when onNewFolderClick is undefined', () => {
+        const header = createHeader()
+        const newFolderBtn = header.querySelector('.js-new-folder-btn') as HTMLButtonElement
+
+        expect(() => newFolderBtn.click()).not.toThrow()
+      })
+    })
+
     describe('button order', () => {
-      it('should have capture button before menu button', () => {
+      it('should have capture button, then new folder button, then menu button', () => {
         const header = createHeader()
         const buttons = header.querySelectorAll('.icon-button')
 
         expect(buttons[0].classList.contains('js-capture-btn')).toBe(true)
-        expect(buttons[1].classList.contains('js-menu-btn')).toBe(true)
+        expect(buttons[1].classList.contains('js-new-folder-btn')).toBe(true)
+        expect(buttons[2].classList.contains('js-menu-btn')).toBe(true)
       })
     })
 
@@ -147,7 +192,7 @@ describe('header', () => {
         const header = createHeader({})
 
         expect(header).toBeInstanceOf(HTMLElement)
-        expect(header.querySelectorAll('.icon-button')).toHaveLength(2)
+        expect(header.querySelectorAll('.icon-button')).toHaveLength(3)
       })
 
       it('should work with no options provided', () => {

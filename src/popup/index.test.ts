@@ -26,7 +26,7 @@ vi.mock('../shared/utils/sql-utils', () => ({
 import { showToast } from './components/toast'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import { checkSqlSafety } from '../shared/utils/sql-utils'
-import type { Query } from '../shared/types/storage.types'
+import type { Query, Folder } from '../shared/types/storage.types'
 import type { MessageResult } from '../shared/types/message.types'
 
 // Helper to create mock query
@@ -37,6 +37,14 @@ const createMockQuery = (overrides?: Partial<Query>): Query => ({
   folderId: null,
   createdAt: '2026-01-22T00:00:00Z',
   updatedAt: '2026-01-22T00:00:00Z',
+  ...overrides,
+})
+
+// Helper to create mock folder
+const createMockFolder = (overrides?: Partial<Folder>): Folder => ({
+  id: 'test-folder-id',
+  name: 'Test Folder',
+  parentId: null,
   ...overrides,
 })
 
@@ -537,6 +545,262 @@ describe('Story 3-5: handleDeleteQuery flow', () => {
       const result = await handleDeleteQuery(query, true, 'other-query')
 
       expect(result.clearedSelection).toBe(false)
+    })
+  })
+})
+
+describe('Story 4-3: handleRenameFolder flow', () => {
+  // Simplified version of handleRenameFolder for testing
+  async function handleRenameFolder(
+    folder: Folder,
+    promptResult: string | null
+  ): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    // Handle cancel or empty input
+    if (promptResult === null) {
+      return // User cancelled
+    }
+
+    const trimmedName = promptResult.trim()
+    if (!trimmedName) {
+      mockedShowToast('Name cannot be empty', 'error')
+      return
+    }
+
+    // Skip if name unchanged
+    if (trimmedName === folder.name) {
+      return
+    }
+
+    // Send UPDATE_FOLDER to service worker
+    const result = (await mockedSendToServiceWorker({
+      type: 'UPDATE_FOLDER',
+      payload: { id: folder.id, updates: { name: trimmedName } },
+    })) as MessageResult<Folder>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    // Show success feedback
+    mockedShowToast(`Renamed to: ${trimmedName}`, 'success')
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('rename validation (AC1)', () => {
+    it('should do nothing when user cancels prompt', async () => {
+      const folder = createMockFolder()
+
+      await handleRenameFolder(folder, null)
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+
+    it('should show error toast for empty name', async () => {
+      const folder = createMockFolder()
+
+      await handleRenameFolder(folder, '   ')
+
+      expect(showToast).toHaveBeenCalledWith('Name cannot be empty', 'error')
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+    })
+
+    it('should skip update if name unchanged', async () => {
+      const folder = createMockFolder({ name: 'Original Name' })
+
+      await handleRenameFolder(folder, 'Original Name')
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+
+    it('should trim whitespace from name', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...folder, name: 'Trimmed Name' },
+      })
+
+      await handleRenameFolder(folder, '  Trimmed Name  ')
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'UPDATE_FOLDER',
+        payload: { id: folder.id, updates: { name: 'Trimmed Name' } },
+      })
+    })
+  })
+
+  describe('rename operation (AC1)', () => {
+    it('should call UPDATE_FOLDER with correct data', async () => {
+      const folder = createMockFolder({ id: 'folder-123', name: 'Old Name' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...folder, name: 'New Name' },
+      })
+
+      await handleRenameFolder(folder, 'New Name')
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'UPDATE_FOLDER',
+        payload: { id: 'folder-123', updates: { name: 'New Name' } },
+      })
+    })
+
+    it('should show success toast after rename', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { ...folder, name: 'New Folder Name' },
+      })
+
+      await handleRenameFolder(folder, 'New Folder Name')
+
+      expect(showToast).toHaveBeenCalledWith('Renamed to: New Folder Name', 'success')
+    })
+
+    it('should show error toast when rename fails', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Folder not found',
+      })
+
+      await handleRenameFolder(folder, 'New Name')
+
+      expect(showToast).toHaveBeenCalledWith('Folder not found', 'error')
+    })
+  })
+})
+
+describe('Story 4-3: handleDeleteFolder flow', () => {
+  // Simplified version of handleDeleteFolder for testing
+  async function handleDeleteFolder(
+    folder: Folder,
+    confirmed: boolean
+  ): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    if (!confirmed) {
+      return // User cancelled
+    }
+
+    // Send DELETE_FOLDER to service worker
+    const result = (await mockedSendToServiceWorker({
+      type: 'DELETE_FOLDER',
+      payload: { id: folder.id },
+    })) as MessageResult<void>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    // Show success feedback
+    mockedShowToast(`Deleted: ${folder.name}`, 'success')
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('delete confirmation (AC2)', () => {
+    it('should do nothing when user cancels confirmation', async () => {
+      const folder = createMockFolder()
+
+      await handleDeleteFolder(folder, false)
+
+      expect(sendToServiceWorker).not.toHaveBeenCalled()
+      expect(showToast).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('delete operation (AC2)', () => {
+    it('should call DELETE_FOLDER with correct id', async () => {
+      const folder = createMockFolder({ id: 'delete-folder-123' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      await handleDeleteFolder(folder, true)
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'DELETE_FOLDER',
+        payload: { id: 'delete-folder-123' },
+      })
+    })
+
+    it('should show success toast with folder name after delete', async () => {
+      const folder = createMockFolder({ name: 'My Deleted Folder' })
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: undefined,
+      })
+
+      await handleDeleteFolder(folder, true)
+
+      expect(showToast).toHaveBeenCalledWith('Deleted: My Deleted Folder', 'success')
+    })
+  })
+
+  describe('delete error handling (AC3, AC4)', () => {
+    it('should show error toast when folder has queries (AC3)', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Folder contains queries. Move or delete them first.',
+      })
+
+      await handleDeleteFolder(folder, true)
+
+      expect(showToast).toHaveBeenCalledWith(
+        'Folder contains queries. Move or delete them first.',
+        'error'
+      )
+    })
+
+    it('should show error toast when folder has subfolders (AC4)', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Folder contains subfolders. Delete them first.',
+      })
+
+      await handleDeleteFolder(folder, true)
+
+      expect(showToast).toHaveBeenCalledWith(
+        'Folder contains subfolders. Delete them first.',
+        'error'
+      )
+    })
+
+    it('should show error toast when folder not found', async () => {
+      const folder = createMockFolder()
+
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Folder not found',
+      })
+
+      await handleDeleteFolder(folder, true)
+
+      expect(showToast).toHaveBeenCalledWith('Folder not found', 'error')
     })
   })
 })

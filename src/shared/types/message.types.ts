@@ -21,10 +21,10 @@ export type MessageType =
   | { type: 'GET_FOLDERS' }
   | { type: 'DELETE_QUERY'; payload: { id: string } }
   | { type: 'UPDATE_QUERY'; payload: { id: string; updates: Partial<Pick<Query, 'name' | 'sql' | 'folderId'>> } }
-  // Folder operations (for later stories)
-  | { type: 'SAVE_FOLDER'; payload: { name: string; parentId?: string | null } }
+  // Folder operations (Story 4-2, 4-3)
+  | { type: 'CREATE_FOLDER'; payload: { name: string; parentId?: string | null } }
+  | { type: 'UPDATE_FOLDER'; payload: { id: string; updates: { name: string } } }
   | { type: 'DELETE_FOLDER'; payload: { id: string } }
-  | { type: 'UPDATE_FOLDER'; payload: { id: string; updates: Partial<Pick<Folder, 'name' | 'parentId'>> } }
 
 // Re-export Result as MessageResult for backwards compatibility
 export type MessageResult<T> = Result<T>

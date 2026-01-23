@@ -4,7 +4,7 @@
  */
 
 import type { Result } from '../types/result.types'
-import type { Query, Folder, SaveQueryInput } from '../types/storage.types'
+import type { Query, Folder, SaveQueryInput, CreateFolderInput } from '../types/storage.types'
 
 const STORAGE_KEY_QUERIES = 'queries'
 const STORAGE_KEY_FOLDERS = 'folders'
@@ -156,4 +156,135 @@ export async function updateQuery(
   }
 
   return { success: true, data: updatedQuery }
+}
+
+/**
+ * Create a new folder (Story 4-2: AC2, AC3, AC4)
+ * Returns Result object with success/data or success=false/error
+ * Generates unique ID using crypto.randomUUID()
+ */
+export async function createFolder(input: CreateFolderInput): Promise<Result<Folder>> {
+  // Validate required fields
+  if (!input.name || input.name.trim() === '') {
+    return { success: false, error: 'Folder name is required' }
+  }
+
+  // Get existing folders
+  const foldersResult = await getFolders()
+  if (!foldersResult.success) {
+    return foldersResult
+  }
+
+  // Validate parentId exists if provided (AC4: parent's ID for nested)
+  if (input.parentId) {
+    const parentExists = foldersResult.data.some((f) => f.id === input.parentId)
+    if (!parentExists) {
+      return { success: false, error: 'Parent folder not found' }
+    }
+  }
+
+  const newFolder: Folder = {
+    id: crypto.randomUUID(),
+    name: input.name.trim(),
+    parentId: input.parentId ?? null,
+  }
+
+  const folders = [...foldersResult.data, newFolder]
+  const setResult = await setInStorage(STORAGE_KEY_FOLDERS, folders)
+
+  if (!setResult.success) {
+    return setResult
+  }
+
+  return { success: true, data: newFolder }
+}
+
+/**
+ * Update a folder by ID with partial updates (Story 4-3: AC1)
+ * Currently only name can be updated (parentId changes handled by drag-drop in Story 4-5)
+ */
+export async function updateFolder(
+  id: string,
+  updates: Partial<Pick<Folder, 'name'>>
+): Promise<Result<Folder>> {
+  // Validate name if provided
+  if (updates.name !== undefined) {
+    const trimmedName = updates.name.trim()
+    if (!trimmedName) {
+      return { success: false, error: 'Folder name is required' }
+    }
+    updates = { ...updates, name: trimmedName }
+  }
+
+  const foldersResult = await getFolders()
+  if (!foldersResult.success) {
+    return foldersResult
+  }
+
+  const folders = foldersResult.data
+  const index = folders.findIndex((f) => f.id === id)
+
+  if (index === -1) {
+    return { success: false, error: 'Folder not found' }
+  }
+
+  const updatedFolder: Folder = {
+    ...folders[index],
+    ...updates,
+  }
+
+  const updatedFolders = [...folders]
+  updatedFolders[index] = updatedFolder
+
+  const setResult = await setInStorage(STORAGE_KEY_FOLDERS, updatedFolders)
+  if (!setResult.success) {
+    return setResult
+  }
+
+  return { success: true, data: updatedFolder }
+}
+
+/**
+ * Delete a folder by ID (Story 4-3: AC2, AC3, AC4)
+ * Only allows deletion of empty folders (no queries, no subfolders)
+ * FR13: User can delete empty folders
+ */
+export async function deleteFolder(id: string): Promise<Result<void>> {
+  // Get current state
+  const [foldersResult, queriesResult] = await Promise.all([
+    getFolders(),
+    getQueries(),
+  ])
+
+  if (!foldersResult.success) {
+    return foldersResult
+  }
+  if (!queriesResult.success) {
+    return queriesResult
+  }
+
+  const folders = foldersResult.data
+  const queries = queriesResult.data
+
+  // Check folder exists
+  const folderIndex = folders.findIndex((f) => f.id === id)
+  if (folderIndex === -1) {
+    return { success: false, error: 'Folder not found' }
+  }
+
+  // Check for queries in this folder (AC3)
+  const hasQueries = queries.some((q) => q.folderId === id)
+  if (hasQueries) {
+    return { success: false, error: 'Folder contains queries. Move or delete them first.' }
+  }
+
+  // Check for subfolders (AC4)
+  const hasSubfolders = folders.some((f) => f.parentId === id)
+  if (hasSubfolders) {
+    return { success: false, error: 'Folder contains subfolders. Delete them first.' }
+  }
+
+  // Safe to delete
+  const updatedFolders = folders.filter((f) => f.id !== id)
+  return setInStorage(STORAGE_KEY_FOLDERS, updatedFolders)
 }

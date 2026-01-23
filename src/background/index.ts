@@ -143,6 +143,33 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle CREATE_FOLDER: Create a new folder (Story 4-2)
+    if (message.type === 'CREATE_FOLDER') {
+      const { name, parentId } = message.payload
+      storageService.createFolder({ name, parentId: parentId ?? null }).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle UPDATE_FOLDER: Update a folder by ID (Story 4-3)
+    if (message.type === 'UPDATE_FOLDER') {
+      const { id, updates } = message.payload
+      storageService.updateFolder(id, updates).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle DELETE_FOLDER: Delete a folder by ID (Story 4-3)
+    if (message.type === 'DELETE_FOLDER') {
+      const { id } = message.payload
+      storageService.deleteFolder(id).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
     // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
     if (message.type === 'PASTE_QUERY') {
       const { sql } = message.payload

@@ -9,6 +9,7 @@ import { ICONS } from '../icons'
 
 export interface HeaderOptions {
   onCaptureClick?: () => void
+  onNewFolderClick?: () => void
   onMenuClick?: () => void
 }
 
@@ -39,6 +40,14 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
     onClick: options.onCaptureClick,
   })
 
+  // New Folder button (Story 4-2)
+  const newFolderButton = createIconButton({
+    icon: ICONS.folderPlus,
+    label: 'Create new folder',
+    className: 'js-new-folder-btn',
+    onClick: options.onNewFolderClick,
+  })
+
   // Menu button (...)
   const menuButton = createIconButton({
     icon: ICONS.moreVertical,
@@ -48,6 +57,7 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
   })
 
   actions.appendChild(captureButton)
+  actions.appendChild(newFolderButton)
   actions.appendChild(menuButton)
 
   header.appendChild(title)

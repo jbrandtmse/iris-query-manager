@@ -10,8 +10,13 @@ import {
   showCaptureForm,
   hideCaptureForm,
 } from './components/capture-form'
+import {
+  createFolderForm,
+  showFolderForm,
+  hideFolderForm,
+} from './components/folder-form'
 import { showToast } from './components/toast'
-import { createTreeView, updateTreeView, selectItem, activateSelectedItem } from './components/tree-view'
+import { createTreeView, updateTreeView, selectItem, activateSelectedItem, setExpandedFolders, getExpandedFolders } from './components/tree-view'
 import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
@@ -20,6 +25,8 @@ import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-util
 
 // Module-level references for component access
 let captureFormElement: HTMLDivElement | null = null
+let folderFormElement: HTMLDivElement | null = null
+let currentFolderFormParentId: string | null = null
 let treeViewElement: HTMLDivElement | null = null
 let currentQueries: Query[] = []
 let currentFolders: Folder[] = []
@@ -42,6 +49,7 @@ function initializePopup(): void {
   // Create header with action handlers
   const header = createHeader({
     onCaptureClick: handleCaptureClick,
+    onNewFolderClick: handleNewFolderClick,
     onMenuClick: handleMenuClick,
   })
 
@@ -49,6 +57,12 @@ function initializePopup(): void {
   captureFormElement = createCaptureForm({
     onSave: handleCaptureSave,
     onCancel: handleCaptureCancel,
+  })
+
+  // Create folder form (hidden by default) - Story 4-2
+  folderFormElement = createFolderForm({
+    onSave: handleFolderSave,
+    onCancel: handleFolderCancel,
   })
 
   // Create content area
@@ -75,9 +89,10 @@ function initializePopup(): void {
   // Create preview panel (Story 3-3)
   const previewPanel = createQueryPreview()
 
-  // Assemble popup: header → capture form → content → preview
+  // Assemble popup: header → capture form → folder form → content → preview
   popup.appendChild(header)
   popup.appendChild(captureFormElement)
+  popup.appendChild(folderFormElement)
   popup.appendChild(content)
   popup.appendChild(previewPanel)
 
@@ -171,6 +186,83 @@ function handleMenuClick(): void {
 }
 
 /**
+ * Handle New Folder button click - show folder form for root folder (Story 4-2 AC1)
+ */
+function handleNewFolderClick(): void {
+  openFolderForm(null)
+}
+
+/**
+ * Open folder form for creating a new folder
+ * @param parentId - null for root folder, folder ID for subfolder
+ */
+function openFolderForm(parentId: string | null): void {
+  if (!folderFormElement) return
+
+  // Store parent ID for when form is submitted
+  currentFolderFormParentId = parentId
+
+  // Hide capture form if open
+  if (captureFormElement && !captureFormElement.hidden) {
+    hideCaptureForm(captureFormElement)
+  }
+
+  showFolderForm(folderFormElement)
+}
+
+/**
+ * Handle folder form save - create folder via service worker (Story 4-2 AC2, AC3, AC4)
+ */
+async function handleFolderSave(name: string, _parentId: string | null): Promise<void> {
+  const showError = (folderFormElement as any)?.__showError as ((msg: string) => void) | undefined
+
+  // Use the stored parentId (from openFolderForm) instead of the one passed
+  // since we manage the parentId state externally
+  const result = await sendToServiceWorker<Folder>({
+    type: 'CREATE_FOLDER',
+    payload: { name, parentId: currentFolderFormParentId },
+  })
+
+  if (!result.success) {
+    showError?.(result.error)
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Success - close form
+  if (folderFormElement) {
+    hideFolderForm(folderFormElement)
+  }
+
+  // Show success toast (Story 4-2 Task 5.5)
+  showToast('Folder created', 'success')
+
+  // Auto-expand parent folder if creating subfolder (Story 4-2 5.6)
+  if (currentFolderFormParentId) {
+    const expanded = getExpandedFolders()
+    if (!expanded.includes(currentFolderFormParentId)) {
+      setExpandedFolders([...expanded, currentFolderFormParentId])
+    }
+  }
+
+  // Refresh tree view with new folder
+  await loadQueriesAndFolders()
+
+  // Reset parentId
+  currentFolderFormParentId = null
+}
+
+/**
+ * Handle folder form cancel - hide form
+ */
+function handleFolderCancel(): void {
+  if (folderFormElement) {
+    hideFolderForm(folderFormElement)
+  }
+  currentFolderFormParentId = null
+}
+
+/**
  * Load queries and folders from storage and update tree view
  */
 async function loadQueriesAndFolders(): Promise<void> {
@@ -257,39 +349,68 @@ function handleTreeViewKeydown(e: KeyboardEvent): void {
 
 /**
  * Handle context menu request from tree item (right-click)
- * Shows context menu with Paste, Rename and Delete options (Story 3-5)
+ * Shows context menu with appropriate options based on item type (Story 3-5, Story 4-2, Story 4-3)
+ * - Query: Paste, Rename, Delete
+ * - Folder: New Subfolder, Rename, Delete
  */
-function handleQueryContextMenu(queryId: string, x: number, y: number): void {
-  const query = currentQueries.find((q) => q.id === queryId)
-  if (!query) return
+function handleQueryContextMenu(itemId: string, x: number, y: number): void {
+  // Check if item is a query or folder
+  const query = currentQueries.find((q) => q.id === itemId)
+  const folder = currentFolders.find((f) => f.id === itemId)
+
+  if (!query && !folder) return
 
   // Find the trigger element for focus return (accessibility)
   const triggerElement = treeViewElement?.querySelector(
-    `[data-id="${queryId}"]`
+    `[data-id="${itemId}"]`
   ) as HTMLElement | null
 
   // Close any existing context menu first
   hideContextMenu()
 
-  showContextMenu({
-    x,
-    y,
-    items: [
-      { label: 'Paste', action: 'paste' },
-      { label: 'Rename', action: 'rename' },
-      { label: 'Delete', action: 'delete', danger: true },
-    ],
-    onSelect: (action) => {
-      if (action === 'paste') {
-        handleQueryActivate(query)
-      } else if (action === 'rename') {
-        handleRenameQuery(query)
-      } else if (action === 'delete') {
-        handleDeleteQuery(query)
-      }
-    },
-    triggerElement: triggerElement ?? undefined,
-  })
+  if (folder) {
+    // Folder context menu (Story 4-2 AC3)
+    showContextMenu({
+      x,
+      y,
+      items: [
+        { label: 'New Subfolder', action: 'new-subfolder' },
+        { label: 'Rename', action: 'rename' },
+        { label: 'Delete', action: 'delete', danger: true },
+      ],
+      onSelect: (action) => {
+        if (action === 'new-subfolder') {
+          openFolderForm(folder.id)
+        } else if (action === 'rename') {
+          handleRenameFolder(folder)
+        } else if (action === 'delete') {
+          handleDeleteFolder(folder)
+        }
+      },
+      triggerElement: triggerElement ?? undefined,
+    })
+  } else if (query) {
+    // Query context menu (Story 3-5)
+    showContextMenu({
+      x,
+      y,
+      items: [
+        { label: 'Paste', action: 'paste' },
+        { label: 'Rename', action: 'rename' },
+        { label: 'Delete', action: 'delete', danger: true },
+      ],
+      onSelect: (action) => {
+        if (action === 'paste') {
+          handleQueryActivate(query)
+        } else if (action === 'rename') {
+          handleRenameQuery(query)
+        } else if (action === 'delete') {
+          handleDeleteQuery(query)
+        }
+      },
+      triggerElement: triggerElement ?? undefined,
+    })
+  }
 }
 
 /**
@@ -364,6 +485,78 @@ async function handleDeleteQuery(query: Query): Promise<void> {
     selectItem(null)
     updateQueryPreview(null)
   }
+
+  // Refresh tree view
+  await loadQueriesAndFolders()
+}
+
+/**
+ * Handle rename folder action (Story 4-3 AC1)
+ * Shows prompt dialog and updates folder name via service worker
+ */
+async function handleRenameFolder(folder: Folder): Promise<void> {
+  const newName = window.prompt('Enter new name:', folder.name)
+
+  // Handle cancel or empty input
+  if (newName === null) {
+    return // User cancelled
+  }
+
+  const trimmedName = newName.trim()
+  if (!trimmedName) {
+    showToast('Name cannot be empty', 'error')
+    return
+  }
+
+  // Skip if name unchanged
+  if (trimmedName === folder.name) {
+    return
+  }
+
+  // Send UPDATE_FOLDER to service worker
+  const result = await sendToServiceWorker<Folder>({
+    type: 'UPDATE_FOLDER',
+    payload: { id: folder.id, updates: { name: trimmedName } },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Show success feedback
+  showToast(`Renamed to: ${trimmedName}`, 'success')
+
+  // Refresh tree view with updated folder
+  await loadQueriesAndFolders()
+}
+
+/**
+ * Handle delete folder action (Story 4-3 AC2, AC3, AC4)
+ * Shows confirmation dialog and removes folder via service worker
+ * Returns error if folder contains queries or subfolders
+ */
+async function handleDeleteFolder(folder: Folder): Promise<void> {
+  const confirmed = window.confirm(`Delete "${folder.name}"?\n\nThis cannot be undone.`)
+
+  if (!confirmed) {
+    return // User cancelled
+  }
+
+  // Send DELETE_FOLDER to service worker
+  const result = await sendToServiceWorker<void>({
+    type: 'DELETE_FOLDER',
+    payload: { id: folder.id },
+  })
+
+  if (!result.success) {
+    // Error messages from storage service are user-friendly (AC3, AC4)
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Show success feedback
+  showToast(`Deleted: ${folder.name}`, 'success')
 
   // Refresh tree view
   await loadQueriesAndFolders()

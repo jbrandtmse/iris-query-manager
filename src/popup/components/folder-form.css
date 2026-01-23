@@ -1,0 +1,109 @@
+/**
+ * Folder Form Component Styles
+ * Story 4-2: Dialog for creating new folders
+ * Pattern: Follows capture-form.css conventions
+ */
+
+/* Form Container */
+.folder-form {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  display: none;
+}
+
+.folder-form--visible {
+  display: block;
+  animation: folderFormSlideDown 0.15s ease-out;
+}
+
+@keyframes folderFormSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Field Layout */
+.folder-form__field {
+  margin-bottom: var(--space-sm);
+}
+
+.folder-form__label {
+  display: block;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+/* Input Styles */
+.folder-form__input {
+  width: 100%;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.folder-form__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.folder-form__input--error {
+  border-color: var(--color-danger);
+}
+
+.folder-form__input--error:focus {
+  border-color: var(--color-danger);
+}
+
+/* Error Message */
+.folder-form__error {
+  display: none;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-xs);
+}
+
+.folder-form__error:not([hidden]) {
+  display: block;
+}
+
+/* Form-level Error */
+.folder-form__form-error {
+  display: none;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  padding: var(--space-sm);
+  background: #fce8e6;
+  border-radius: var(--border-radius);
+  margin-bottom: var(--space-sm);
+}
+
+.folder-form__form-error:not([hidden]) {
+  display: block;
+}
+
+/* Actions */
+.folder-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .folder-form--visible {
+    animation: none;
+  }
+}

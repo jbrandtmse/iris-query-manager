@@ -6,6 +6,9 @@ import {
   saveQuery,
   deleteQuery,
   updateQuery,
+  createFolder,
+  updateFolder,
+  deleteFolder,
 } from './storage-service'
 
 // Mock chrome.storage.local
@@ -392,6 +395,400 @@ describe('storage-service', () => {
           /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
         )
       }
+    })
+  })
+
+  describe('createFolder', () => {
+    it('should create a new folder with generated UUID (AC4)', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await createFolder({
+        name: 'New Folder',
+        parentId: null,
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.id).toBe('test-uuid-12345')
+        expect(result.data.name).toBe('New Folder')
+        expect(result.data.parentId).toBe(null)
+      }
+    })
+
+    it('should add folder to existing folders array (AC2)', async () => {
+      const existingFolder: Folder = {
+        id: 'existing-folder',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [existingFolder] })
+
+      await createFolder({
+        name: 'New Folder',
+        parentId: null,
+      })
+
+      const storage = mock.getStorage()
+      expect(storage.folders).toHaveLength(2)
+      expect(storage.folders?.[0]).toEqual(existingFolder)
+      expect(storage.folders?.[1]?.name).toBe('New Folder')
+    })
+
+    it('should create subfolder with parentId (AC3, FR11)', async () => {
+      const parentFolder: Folder = {
+        id: 'parent-folder',
+        name: 'Parent',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [parentFolder] })
+
+      const result = await createFolder({
+        name: 'Subfolder',
+        parentId: 'parent-folder',
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('parent-folder')
+      }
+    })
+
+    it('should default parentId to null when not provided', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await createFolder({
+        name: 'Root Folder',
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe(null)
+      }
+    })
+
+    it('should trim folder name whitespace', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await createFolder({
+        name: '  Trimmed Name  ',
+        parentId: null,
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('Trimmed Name')
+      }
+    })
+
+    it('should return error when name is empty', async () => {
+      const result = await createFolder({
+        name: '',
+        parentId: null,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder name is required')
+      }
+    })
+
+    it('should return error when name is only whitespace', async () => {
+      const result = await createFolder({
+        name: '   ',
+        parentId: null,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder name is required')
+      }
+    })
+
+    it('should return error when storage set fails', async () => {
+      mock.setStorage({ folders: [] })
+      mock.mockChrome.storage.local.set = vi.fn((_, callback) => {
+        mock.setLastError('Write failed')
+        callback?.()
+      })
+
+      const result = await createFolder({
+        name: 'Fail Folder',
+        parentId: null,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Write failed')
+      }
+    })
+
+    it('should use crypto.randomUUID() for ID generation', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await createFolder({
+        name: 'UUID Test',
+        parentId: null,
+      })
+
+      expect(crypto.randomUUID).toHaveBeenCalled()
+      if (result.success) {
+        expect(result.data.id).toBe('test-uuid-12345')
+      }
+    })
+
+    it('should return error when parentId does not exist', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await createFolder({
+        name: 'Orphan Folder',
+        parentId: 'non-existent-parent',
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Parent folder not found')
+      }
+    })
+
+    it('should succeed when parentId exists', async () => {
+      const parentFolder: Folder = {
+        id: 'valid-parent',
+        name: 'Parent',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [parentFolder] })
+
+      const result = await createFolder({
+        name: 'Valid Child',
+        parentId: 'valid-parent',
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('valid-parent')
+      }
+    })
+  })
+
+  describe('updateFolder', () => {
+    it('should update folder name', async () => {
+      const folder: Folder = {
+        id: 'update-folder',
+        name: 'Original Name',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder] })
+
+      const result = await updateFolder('update-folder', { name: 'Updated Name' })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('Updated Name')
+        expect(result.data.id).toBe('update-folder')
+        expect(result.data.parentId).toBe(null)
+      }
+
+      const storage = mock.getStorage()
+      expect(storage.folders?.[0]?.name).toBe('Updated Name')
+    })
+
+    it('should return error when folder not found', async () => {
+      mock.setStorage({ folders: [] })
+
+      const result = await updateFolder('nonexistent', { name: 'New Name' })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder not found')
+      }
+    })
+
+    it('should return error when name is empty', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder] })
+
+      const result = await updateFolder('folder-1', { name: '' })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder name is required')
+      }
+    })
+
+    it('should return error when name is whitespace only', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder] })
+
+      const result = await updateFolder('folder-1', { name: '   ' })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder name is required')
+      }
+    })
+
+    it('should trim whitespace from name', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder] })
+
+      const result = await updateFolder('folder-1', { name: '  Trimmed Name  ' })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('Trimmed Name')
+      }
+    })
+
+    it('should return error when storage set fails', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder] })
+      mock.mockChrome.storage.local.set = vi.fn((_, callback) => {
+        mock.setLastError('Write failed')
+        callback?.()
+      })
+
+      const result = await updateFolder('folder-1', { name: 'New Name' })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Write failed')
+      }
+    })
+  })
+
+  describe('deleteFolder', () => {
+    it('should delete empty folder', async () => {
+      const folder: Folder = {
+        id: 'delete-me',
+        name: 'To Delete',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder], queries: [] })
+
+      const result = await deleteFolder('delete-me')
+
+      expect(result.success).toBe(true)
+      const storage = mock.getStorage()
+      expect(storage.folders).toHaveLength(0)
+    })
+
+    it('should return error when folder has queries', async () => {
+      const folder: Folder = {
+        id: 'has-queries',
+        name: 'Folder With Queries',
+        parentId: null,
+      }
+      const query: Query = {
+        id: 'query-1',
+        name: 'Query',
+        sql: 'SELECT 1',
+        folderId: 'has-queries',
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ folders: [folder], queries: [query] })
+
+      const result = await deleteFolder('has-queries')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder contains queries. Move or delete them first.')
+      }
+    })
+
+    it('should return error when folder has subfolders', async () => {
+      const parentFolder: Folder = {
+        id: 'parent-folder',
+        name: 'Parent',
+        parentId: null,
+      }
+      const childFolder: Folder = {
+        id: 'child-folder',
+        name: 'Child',
+        parentId: 'parent-folder',
+      }
+      mock.setStorage({ folders: [parentFolder, childFolder], queries: [] })
+
+      const result = await deleteFolder('parent-folder')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder contains subfolders. Delete them first.')
+      }
+    })
+
+    it('should return error when folder not found', async () => {
+      mock.setStorage({ folders: [], queries: [] })
+
+      const result = await deleteFolder('nonexistent')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder not found')
+      }
+    })
+
+    it('should return error when storage set fails', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Existing',
+        parentId: null,
+      }
+      mock.setStorage({ folders: [folder], queries: [] })
+      mock.mockChrome.storage.local.set = vi.fn((_, callback) => {
+        mock.setLastError('Write failed')
+        callback?.()
+      })
+
+      const result = await deleteFolder('folder-1')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Write failed')
+      }
+    })
+
+    it('should allow deletion after removing all queries from folder', async () => {
+      const folder: Folder = {
+        id: 'folder-1',
+        name: 'Folder',
+        parentId: null,
+      }
+      // No queries in this folder
+      mock.setStorage({ folders: [folder], queries: [] })
+
+      const result = await deleteFolder('folder-1')
+
+      expect(result.success).toBe(true)
+    })
+
+    it('should keep other folders when deleting one', async () => {
+      const folder1: Folder = { id: 'folder-1', name: 'Keep', parentId: null }
+      const folder2: Folder = { id: 'folder-2', name: 'Delete', parentId: null }
+      mock.setStorage({ folders: [folder1, folder2], queries: [] })
+
+      const result = await deleteFolder('folder-2')
+
+      expect(result.success).toBe(true)
+      const storage = mock.getStorage()
+      expect(storage.folders).toHaveLength(1)
+      expect(storage.folders?.[0]?.id).toBe('folder-1')
     })
   })
 })

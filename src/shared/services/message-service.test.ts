@@ -394,9 +394,9 @@ describe('message-service', () => {
         { type: 'DELETE_QUERY', payload: { id: '123' } },
         { type: 'UPDATE_QUERY', payload: { id: '123', updates: { name: 'new' } } },
         // Folder operations
-        { type: 'SAVE_FOLDER', payload: { name: 'folder' } },
-        { type: 'DELETE_FOLDER', payload: { id: '456' } },
+        { type: 'CREATE_FOLDER', payload: { name: 'folder' } },
         { type: 'UPDATE_FOLDER', payload: { id: '456', updates: { name: 'renamed' } } },
+        { type: 'DELETE_FOLDER', payload: { id: '456' } },
       ]
 
       // All 13 message types in the union are represented

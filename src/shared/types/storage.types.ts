@@ -42,3 +42,12 @@ export interface SaveQueryInput {
   sql: string
   folderId?: string | null
 }
+
+/**
+ * Input for creating a new folder (id is generated)
+ * Story 4-2: AC4 - parentId null for root, parent's ID for nested
+ */
+export interface CreateFolderInput {
+  name: string
+  parentId?: string | null
+}
