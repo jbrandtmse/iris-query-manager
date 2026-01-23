@@ -9,6 +9,7 @@ import {
   createFolder,
   updateFolder,
   deleteFolder,
+  moveQuery,
 } from './storage-service'
 
 // Mock chrome.storage.local
@@ -789,6 +790,147 @@ describe('storage-service', () => {
       const storage = mock.getStorage()
       expect(storage.folders).toHaveLength(1)
       expect(storage.folders?.[0]?.id).toBe('folder-1')
+    })
+  })
+
+  describe('moveQuery', () => {
+    it('should move query to folder', async () => {
+      const folder: Folder = { id: 'target-folder', name: 'Target', parentId: null }
+      const query: Query = {
+        id: 'query-to-move',
+        name: 'Move Me',
+        sql: 'SELECT 1',
+        folderId: null,
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [folder] })
+
+      const result = await moveQuery('query-to-move', 'target-folder')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.folderId).toBe('target-folder')
+        expect(result.data.id).toBe('query-to-move')
+      }
+      const storage = mock.getStorage()
+      expect(storage.queries?.[0]?.folderId).toBe('target-folder')
+    })
+
+    it('should move query to root (null folderId)', async () => {
+      const folder: Folder = { id: 'source-folder', name: 'Source', parentId: null }
+      const query: Query = {
+        id: 'query-in-folder',
+        name: 'In Folder',
+        sql: 'SELECT 1',
+        folderId: 'source-folder',
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [folder] })
+
+      const result = await moveQuery('query-in-folder', null)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.folderId).toBe(null)
+      }
+      const storage = mock.getStorage()
+      expect(storage.queries?.[0]?.folderId).toBe(null)
+    })
+
+    it('should return error when query not found', async () => {
+      mock.setStorage({ queries: [], folders: [] })
+
+      const result = await moveQuery('nonexistent', 'some-folder')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Query not found')
+      }
+    })
+
+    it('should return error when target folder not found', async () => {
+      const query: Query = {
+        id: 'query-1',
+        name: 'Query',
+        sql: 'SELECT 1',
+        folderId: null,
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [] })
+
+      const result = await moveQuery('query-1', 'nonexistent-folder')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Target folder not found')
+      }
+    })
+
+    it('should skip update if already in target location', async () => {
+      const folder: Folder = { id: 'same-folder', name: 'Same', parentId: null }
+      const query: Query = {
+        id: 'already-there',
+        name: 'Already There',
+        sql: 'SELECT 1',
+        folderId: 'same-folder',
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [folder] })
+
+      const result = await moveQuery('already-there', 'same-folder')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        // Should return original query without updating
+        expect(result.data.updatedAt).toBe('2026-01-20T10:00:00.000Z')
+      }
+    })
+
+    it('should update updatedAt timestamp', async () => {
+      const folder: Folder = { id: 'target-folder', name: 'Target', parentId: null }
+      const query: Query = {
+        id: 'query-1',
+        name: 'Query',
+        sql: 'SELECT 1',
+        folderId: null,
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [folder] })
+
+      const result = await moveQuery('query-1', 'target-folder')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.updatedAt).not.toBe('2026-01-20T10:00:00.000Z')
+        expect(result.data.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      }
+    })
+
+    it('should preserve other query fields when moving', async () => {
+      const folder: Folder = { id: 'target-folder', name: 'Target', parentId: null }
+      const query: Query = {
+        id: 'query-1',
+        name: 'My Query',
+        sql: 'SELECT * FROM users',
+        folderId: null,
+        createdAt: '2026-01-20T10:00:00.000Z',
+        updatedAt: '2026-01-20T10:00:00.000Z',
+      }
+      mock.setStorage({ queries: [query], folders: [folder] })
+
+      const result = await moveQuery('query-1', 'target-folder')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('My Query')
+        expect(result.data.sql).toBe('SELECT * FROM users')
+        expect(result.data.createdAt).toBe('2026-01-20T10:00:00.000Z')
+      }
     })
   })
 })

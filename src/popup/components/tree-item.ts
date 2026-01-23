@@ -34,6 +34,7 @@ export function clearFolderDebounceState(): void {
 }
 
 export type TreeItemContextMenuHandler = (id: string, x: number, y: number) => void
+export type QueryDropHandler = (queryId: string, targetFolderId: string | null) => void
 
 export interface TreeItemOptions {
   query: Query
@@ -41,13 +42,15 @@ export interface TreeItemOptions {
   level?: number
   onClick?: TreeItemClickHandler
   onContextMenu?: TreeItemContextMenuHandler
+  onDragStart?: (queryId: string) => void
+  onDragEnd?: () => void
 }
 
 /**
  * Create a tree item element for a query
  */
 export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
-  const { query, isSelected, level = 0, onClick, onContextMenu } = options
+  const { query, isSelected, level = 0, onClick, onContextMenu, onDragStart, onDragEnd } = options
 
   const item = document.createElement('div')
   item.className = 'tree-item tree-item--query'
@@ -59,6 +62,10 @@ export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
   item.setAttribute('tabindex', '0')
   item.setAttribute('aria-selected', String(isSelected))
   item.setAttribute('data-id', query.id)
+
+  // Drag-drop attributes (Story 4-4)
+  item.setAttribute('draggable', 'true')
+  item.setAttribute('data-draggable', 'query')
 
   // Set level for CSS indentation and ARIA
   item.setAttribute('aria-level', String(level + 1)) // ARIA levels are 1-based
@@ -115,6 +122,21 @@ export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
     onContextMenu?.(query.id, e.clientX, e.clientY)
   })
 
+  // Drag start handler (Story 4-4)
+  item.addEventListener('dragstart', (e) => {
+    if (!e.dataTransfer) return
+    e.dataTransfer.setData('application/x-query-id', query.id)
+    e.dataTransfer.effectAllowed = 'move'
+    item.classList.add('tree-item--dragging')
+    onDragStart?.(query.id)
+  })
+
+  // Drag end handler (Story 4-4)
+  item.addEventListener('dragend', () => {
+    item.classList.remove('tree-item--dragging')
+    onDragEnd?.()
+  })
+
   return item
 }
 
@@ -127,13 +149,14 @@ export interface TreeItemFolderOptions {
   level?: number
   onToggle?: FolderToggleHandler
   onContextMenu?: TreeItemContextMenuHandler
+  onQueryDrop?: QueryDropHandler
 }
 
 /**
  * Create a tree item element for a folder
  */
 export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivElement {
-  const { folder, isExpanded, isSelected, level = 0, onToggle, onContextMenu } = options
+  const { folder, isExpanded, isSelected, level = 0, onToggle, onContextMenu, onQueryDrop } = options
 
   const item = document.createElement('div')
   item.className = 'tree-item tree-item--folder'
@@ -150,6 +173,9 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
   item.setAttribute('aria-expanded', String(isExpanded))
   item.setAttribute('data-id', folder.id)
   item.setAttribute('data-type', 'folder')
+
+  // Drop target attributes (Story 4-4)
+  item.setAttribute('data-droppable', 'folder')
 
   // Set level for CSS indentation and ARIA
   item.setAttribute('aria-level', String(level + 1)) // ARIA levels are 1-based
@@ -212,6 +238,56 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
   item.addEventListener('contextmenu', (e) => {
     e.preventDefault()
     onContextMenu?.(folder.id, e.clientX, e.clientY)
+  })
+
+  // ========== Drop event handlers (Story 4-4) ==========
+
+  // Track dragenter/dragleave count to handle child element events
+  // This prevents flickering when dragging over child elements (icon, name span)
+  let dragEnterCount = 0
+
+  // Dragover handler - allow drop
+  item.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move'
+    }
+  })
+
+  // Dragenter handler - visual feedback (increment counter)
+  item.addEventListener('dragenter', (e) => {
+    e.preventDefault()
+    dragEnterCount++
+    if (dragEnterCount === 1) {
+      item.classList.add('tree-item--drop-target')
+    }
+  })
+
+  // Dragleave handler - remove visual feedback (decrement counter)
+  item.addEventListener('dragleave', () => {
+    dragEnterCount--
+    if (dragEnterCount === 0) {
+      item.classList.remove('tree-item--drop-target')
+    }
+  })
+
+  // Drop handler - move query to folder
+  item.addEventListener('drop', (e) => {
+    e.preventDefault()
+    // Reset counter and remove class on drop
+    dragEnterCount = 0
+    item.classList.remove('tree-item--drop-target')
+
+    const queryId = e.dataTransfer?.getData('application/x-query-id')
+    // Validate queryId is a non-empty string before acting
+    if (queryId && typeof queryId === 'string' && queryId.trim().length > 0) {
+      // Expand folder if collapsed
+      if (!isExpanded && onToggle) {
+        onToggle(folder.id, true)
+      }
+      // Notify parent to handle the move
+      onQueryDrop?.(queryId, folder.id)
+    }
   })
 
   return item

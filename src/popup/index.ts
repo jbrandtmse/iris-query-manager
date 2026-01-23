@@ -16,7 +16,7 @@ import {
   hideFolderForm,
 } from './components/folder-form'
 import { showToast } from './components/toast'
-import { createTreeView, updateTreeView, selectItem, activateSelectedItem, setExpandedFolders, getExpandedFolders } from './components/tree-view'
+import { createTreeView, updateTreeView, selectItem, activateSelectedItem, setExpandedFolders, getExpandedFolders, toggleFolder } from './components/tree-view'
 import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
@@ -73,10 +73,12 @@ function initializePopup(): void {
   // onItemSelect: called on keyboard navigation (selection only, no paste)
   // onItemActivate: called on click or Enter (triggers paste)
   // onItemContextMenu: called on right-click (Story 3-5)
+  // onQueryDrop: called when query is dropped on folder/root (Story 4-4)
   treeViewElement = createTreeView({
     onItemSelect: handleQuerySelectionChange,
     onItemActivate: handleQueryActivate,
     onItemContextMenu: handleQueryContextMenu,
+    onQueryDrop: handleQueryDrop,
   })
   content.appendChild(treeViewElement)
 
@@ -282,6 +284,7 @@ async function loadQueriesAndFolders(): Promise<void> {
     onItemSelect: handleQuerySelectionChange,
     onItemActivate: handleQueryActivate,
     onItemContextMenu: handleQueryContextMenu,
+    onQueryDrop: handleQueryDrop,
   })
 }
 
@@ -560,6 +563,43 @@ async function handleDeleteFolder(folder: Folder): Promise<void> {
 
   // Refresh tree view
   await loadQueriesAndFolders()
+}
+
+/**
+ * Handle query drop on folder or root (Story 4-4)
+ * Moves query to target folder via service worker
+ * @param queryId - The query being moved
+ * @param targetFolderId - Target folder ID, or null for root
+ */
+async function handleQueryDrop(queryId: string, targetFolderId: string | null): Promise<void> {
+  // Send MOVE_QUERY to service worker
+  const result = await sendToServiceWorker<Query>({
+    type: 'MOVE_QUERY',
+    payload: { queryId, targetFolderId },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Get folder name for toast message
+  const folderName = targetFolderId
+    ? currentFolders.find((f) => f.id === targetFolderId)?.name ?? 'folder'
+    : 'root'
+
+  // Show success feedback
+  showToast(`Moved to: ${folderName}`, 'success')
+
+  // Preserve expanded folders state during refresh
+  const expandedIds = getExpandedFolders()
+  await loadQueriesAndFolders()
+  setExpandedFolders(expandedIds)
+
+  // Expand target folder if it was collapsed
+  if (targetFolderId && !expandedIds.includes(targetFolderId)) {
+    toggleFolder(targetFolderId)
+  }
 }
 
 // Initialize on DOM ready

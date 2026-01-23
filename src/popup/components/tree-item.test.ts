@@ -747,4 +747,240 @@ describe('folder-tree-item', () => {
       expect(onToggle).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('Story 4-4: folder drop events', () => {
+    it('should have data-droppable="folder" attribute', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('data-droppable')).toBe('folder')
+    })
+
+    it('should add drop-target class on dragenter', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      document.body.appendChild(item)
+
+      const event = new Event('dragenter', { bubbles: true, cancelable: true })
+      item.dispatchEvent(event)
+
+      expect(item.classList.contains('tree-item--drop-target')).toBe(true)
+    })
+
+    it('should remove drop-target class on dragleave when counter reaches zero', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      document.body.appendChild(item)
+
+      // Simulate dragenter first (increments counter to 1)
+      const enterEvent = new Event('dragenter', { bubbles: true, cancelable: true })
+      item.dispatchEvent(enterEvent)
+      expect(item.classList.contains('tree-item--drop-target')).toBe(true)
+
+      // Simulate dragleave (decrements counter to 0)
+      const leaveEvent = new Event('dragleave', { bubbles: true })
+      item.dispatchEvent(leaveEvent)
+
+      expect(item.classList.contains('tree-item--drop-target')).toBe(false)
+    })
+
+    it('should not remove drop-target class on dragleave when entering child element', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      document.body.appendChild(item)
+
+      // Simulate dragenter on parent (counter = 1)
+      item.dispatchEvent(new Event('dragenter', { bubbles: true, cancelable: true }))
+      // Simulate dragenter on child (counter = 2)
+      item.dispatchEvent(new Event('dragenter', { bubbles: true, cancelable: true }))
+      // Simulate dragleave from parent to child (counter = 1)
+      item.dispatchEvent(new Event('dragleave', { bubbles: true }))
+
+      // Class should still be present
+      expect(item.classList.contains('tree-item--drop-target')).toBe(true)
+    })
+
+    it('should call onQueryDrop on drop with query id', () => {
+      const onQueryDrop = vi.fn()
+      const item = createFolderTreeItem({
+        folder: mockFolder,
+        isExpanded: false,
+        isSelected: false,
+        onQueryDrop,
+      })
+      document.body.appendChild(item)
+
+      // Create a drop event with dataTransfer
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as any
+      dropEvent.dataTransfer = {
+        getData: vi.fn().mockReturnValue('test-query-id'),
+      }
+      dropEvent.preventDefault = vi.fn()
+
+      item.dispatchEvent(dropEvent)
+
+      expect(onQueryDrop).toHaveBeenCalledWith('test-query-id', 'folder-123')
+    })
+
+    it('should remove drop-target class on drop', () => {
+      const onQueryDrop = vi.fn()
+      const item = createFolderTreeItem({
+        folder: mockFolder,
+        isExpanded: false,
+        isSelected: false,
+        onQueryDrop,
+      })
+      document.body.appendChild(item)
+
+      // Add the class first
+      item.classList.add('tree-item--drop-target')
+
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as any
+      dropEvent.dataTransfer = {
+        getData: vi.fn().mockReturnValue('test-query-id'),
+      }
+      dropEvent.preventDefault = vi.fn()
+
+      item.dispatchEvent(dropEvent)
+
+      expect(item.classList.contains('tree-item--drop-target')).toBe(false)
+    })
+
+    it('should call preventDefault on dragover', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      document.body.appendChild(item)
+
+      const event = new Event('dragover', { bubbles: true, cancelable: true }) as any
+      event.dataTransfer = { dropEffect: 'none' }
+      event.preventDefault = vi.fn()
+
+      item.dispatchEvent(event)
+
+      expect(event.preventDefault).toHaveBeenCalled()
+    })
+
+    it('should expand collapsed folder on drop', () => {
+      const onToggle = vi.fn()
+      const onQueryDrop = vi.fn()
+      const item = createFolderTreeItem({
+        folder: mockFolder,
+        isExpanded: false,
+        isSelected: false,
+        onToggle,
+        onQueryDrop,
+      })
+      document.body.appendChild(item)
+
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as any
+      dropEvent.dataTransfer = {
+        getData: vi.fn().mockReturnValue('test-query-id'),
+      }
+      dropEvent.preventDefault = vi.fn()
+
+      item.dispatchEvent(dropEvent)
+
+      // Should call onToggle to expand the folder
+      expect(onToggle).toHaveBeenCalledWith('folder-123', true)
+    })
+  })
+})
+
+// ========== Story 4-4: Query Drag Tests ==========
+
+describe('tree-item drag events (Story 4-4)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    clearDebounceState()
+  })
+
+  it('should have draggable="true" attribute on query items', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    expect(item.getAttribute('draggable')).toBe('true')
+  })
+
+  it('should have data-draggable="query" attribute', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    expect(item.getAttribute('data-draggable')).toBe('query')
+  })
+
+  it('should add dragging class on dragstart', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    document.body.appendChild(item)
+
+    const event = new Event('dragstart', { bubbles: true }) as any
+    event.dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: '',
+    }
+
+    item.dispatchEvent(event)
+
+    expect(item.classList.contains('tree-item--dragging')).toBe(true)
+  })
+
+  it('should set correct dataTransfer data on dragstart', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    document.body.appendChild(item)
+
+    const setData = vi.fn()
+    const event = new Event('dragstart', { bubbles: true }) as any
+    event.dataTransfer = {
+      setData,
+      effectAllowed: '',
+    }
+
+    item.dispatchEvent(event)
+
+    expect(setData).toHaveBeenCalledWith('application/x-query-id', 'test-id-123')
+  })
+
+  it('should set effectAllowed to "move" on dragstart', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    document.body.appendChild(item)
+
+    const event = new Event('dragstart', { bubbles: true }) as any
+    event.dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: '',
+    }
+
+    item.dispatchEvent(event)
+
+    expect(event.dataTransfer.effectAllowed).toBe('move')
+  })
+
+  it('should call onDragStart callback on dragstart', () => {
+    const onDragStart = vi.fn()
+    const item = createTreeItem({ query: mockQuery, isSelected: false, onDragStart })
+    document.body.appendChild(item)
+
+    const event = new Event('dragstart', { bubbles: true }) as any
+    event.dataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: '',
+    }
+
+    item.dispatchEvent(event)
+
+    expect(onDragStart).toHaveBeenCalledWith('test-id-123')
+  })
+
+  it('should remove dragging class on dragend', () => {
+    const item = createTreeItem({ query: mockQuery, isSelected: false })
+    document.body.appendChild(item)
+
+    // Add the dragging class first
+    item.classList.add('tree-item--dragging')
+
+    const event = new Event('dragend', { bubbles: true })
+    item.dispatchEvent(event)
+
+    expect(item.classList.contains('tree-item--dragging')).toBe(false)
+  })
+
+  it('should call onDragEnd callback on dragend', () => {
+    const onDragEnd = vi.fn()
+    const item = createTreeItem({ query: mockQuery, isSelected: false, onDragEnd })
+    document.body.appendChild(item)
+
+    const event = new Event('dragend', { bubbles: true })
+    item.dispatchEvent(event)
+
+    expect(onDragEnd).toHaveBeenCalled()
+  })
 })

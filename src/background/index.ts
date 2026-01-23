@@ -170,6 +170,15 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle MOVE_QUERY: Move a query to a different folder (Story 4-4)
+    if (message.type === 'MOVE_QUERY') {
+      const { queryId, targetFolderId } = message.payload
+      storageService.moveQuery(queryId, targetFolderId).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
     // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
     if (message.type === 'PASTE_QUERY') {
       const { sql } = message.payload

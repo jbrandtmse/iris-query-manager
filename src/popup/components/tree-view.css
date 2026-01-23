@@ -35,3 +35,28 @@
   font-size: var(--font-size-sm, 13px);
   margin: 0;
 }
+
+/* ========== Root Drop Zone (Story 4-4) ========== */
+
+.tree-view__root-drop-zone {
+  padding: var(--space-sm, 8px) var(--space-md, 12px);
+  margin-top: var(--space-sm, 8px);
+  border: 1px dashed var(--color-border, #dadce0);
+  border-radius: 4px;
+  text-align: center;
+  color: var(--color-text-secondary, #5f6368);
+  font-size: 12px;
+  display: none; /* Hidden by default, shown during drag */
+}
+
+/* Show when dragging is active */
+.tree-view--dragging .tree-view__root-drop-zone {
+  display: block;
+}
+
+/* Active drop target state */
+.tree-view__root-drop-zone--active {
+  background-color: var(--color-hover, #e8f0fe);
+  border-color: var(--color-primary, #4285f4);
+  color: var(--color-primary, #4285f4);
+}

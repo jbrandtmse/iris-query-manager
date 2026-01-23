@@ -11,6 +11,7 @@ import {
   type TreeItemClickHandler,
   type TreeItemContextMenuHandler,
   type FolderToggleHandler,
+  type QueryDropHandler,
 } from './tree-item'
 
 interface TreeViewState {
@@ -23,6 +24,7 @@ export interface TreeViewOptions {
   onItemActivate?: (query: Query) => void // Called on Enter/click for paste action
   onItemContextMenu?: TreeItemContextMenuHandler // Called on right-click
   onFolderToggle?: FolderToggleHandler // Called when folder expand/collapse is toggled
+  onQueryDrop?: QueryDropHandler // Called when query is dropped on folder or root (Story 4-4)
 }
 
 // Module state
@@ -180,6 +182,10 @@ export function updateTreeView(
   renderTree(tree, list, 0)
 
   treeViewElement.appendChild(list)
+
+  // Add root drop zone (Story 4-4)
+  const rootDropZone = createRootDropZone()
+  treeViewElement.appendChild(rootDropZone)
 }
 
 /**
@@ -198,6 +204,7 @@ function renderTree(nodes: TreeNode[], container: HTMLElement, level: number): v
         level,
         onToggle: handleFolderToggle,
         onContextMenu: currentOptions.onItemContextMenu,
+        onQueryDrop: currentOptions.onQueryDrop,
       })
       container.appendChild(folderItem)
 
@@ -221,10 +228,28 @@ function renderTree(nodes: TreeNode[], container: HTMLElement, level: number): v
           }
         },
         onContextMenu: currentOptions.onItemContextMenu,
+        onDragStart: handleDragStart,
+        onDragEnd: handleDragEnd,
       })
       container.appendChild(queryItem)
     }
   }
+}
+
+// ========== Drag State Handlers (Story 4-4) ==========
+
+/**
+ * Handle drag start - update dragging state
+ */
+function handleDragStart(): void {
+  treeViewElement?.classList.add('tree-view--dragging')
+}
+
+/**
+ * Handle drag end - reset dragging state
+ */
+function handleDragEnd(): void {
+  treeViewElement?.classList.remove('tree-view--dragging')
 }
 
 /**
@@ -290,6 +315,61 @@ export function selectItem(id: string | null): void {
  */
 export function getSelectedId(): string | null {
   return state.selectedId
+}
+
+/**
+ * Create root drop zone element for moving queries to root (Story 4-4)
+ */
+function createRootDropZone(): HTMLDivElement {
+  const rootDropZone = document.createElement('div')
+  rootDropZone.className = 'tree-view__root-drop-zone'
+  rootDropZone.textContent = 'Drop here to move to root'
+  rootDropZone.setAttribute('data-droppable', 'root')
+
+  // Track dragenter/dragleave count to handle child element events
+  let dragEnterCount = 0
+
+  // Dragover handler - allow drop
+  rootDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault()
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move'
+    }
+  })
+
+  // Dragenter handler - visual feedback (increment counter)
+  rootDropZone.addEventListener('dragenter', (e) => {
+    e.preventDefault()
+    dragEnterCount++
+    if (dragEnterCount === 1) {
+      rootDropZone.classList.add('tree-view__root-drop-zone--active')
+    }
+  })
+
+  // Dragleave handler - remove visual feedback (decrement counter)
+  rootDropZone.addEventListener('dragleave', () => {
+    dragEnterCount--
+    if (dragEnterCount === 0) {
+      rootDropZone.classList.remove('tree-view__root-drop-zone--active')
+    }
+  })
+
+  // Drop handler - move query to root
+  rootDropZone.addEventListener('drop', (e) => {
+    e.preventDefault()
+    // Reset counter and remove class on drop
+    dragEnterCount = 0
+    rootDropZone.classList.remove('tree-view__root-drop-zone--active')
+
+    const queryId = e.dataTransfer?.getData('application/x-query-id')
+    // Validate queryId is a non-empty string before acting
+    if (queryId && typeof queryId === 'string' && queryId.trim().length > 0) {
+      // Move to root (folderId = null)
+      currentOptions.onQueryDrop?.(queryId, null)
+    }
+  })
+
+  return rootDropZone
 }
 
 /**

@@ -288,3 +288,65 @@ export async function deleteFolder(id: string): Promise<Result<void>> {
   const updatedFolders = folders.filter((f) => f.id !== id)
   return setInStorage(STORAGE_KEY_FOLDERS, updatedFolders)
 }
+
+/**
+ * Move a query to a different folder (or to root) (Story 4-4: FR14)
+ * @param queryId - The ID of the query to move
+ * @param targetFolderId - The target folder ID, or null to move to root
+ */
+export async function moveQuery(
+  queryId: string,
+  targetFolderId: string | null
+): Promise<Result<Query>> {
+  // Get current state
+  const [queriesResult, foldersResult] = await Promise.all([
+    getQueries(),
+    getFolders(),
+  ])
+
+  if (!queriesResult.success) {
+    return queriesResult
+  }
+  if (!foldersResult.success) {
+    return foldersResult
+  }
+
+  const queries = queriesResult.data
+  const folders = foldersResult.data
+
+  // Find query
+  const queryIndex = queries.findIndex((q) => q.id === queryId)
+  if (queryIndex === -1) {
+    return { success: false, error: 'Query not found' }
+  }
+
+  // Validate target folder exists (if not moving to root)
+  if (targetFolderId !== null) {
+    const folderExists = folders.some((f) => f.id === targetFolderId)
+    if (!folderExists) {
+      return { success: false, error: 'Target folder not found' }
+    }
+  }
+
+  // Skip if already in target location
+  if (queries[queryIndex].folderId === targetFolderId) {
+    return { success: true, data: queries[queryIndex] }
+  }
+
+  // Update query
+  const updatedQuery: Query = {
+    ...queries[queryIndex],
+    folderId: targetFolderId,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const updatedQueries = [...queries]
+  updatedQueries[queryIndex] = updatedQuery
+
+  const setResult = await setInStorage(STORAGE_KEY_QUERIES, updatedQueries)
+  if (!setResult.success) {
+    return setResult
+  }
+
+  return { success: true, data: updatedQuery }
+}

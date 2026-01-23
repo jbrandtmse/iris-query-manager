@@ -99,6 +99,25 @@
   transform: rotate(90deg);
 }
 
+/* ========== Drag-Drop States (Story 4-4) ========== */
+
+/* Query being dragged */
+.tree-item--dragging {
+  opacity: 0.5;
+}
+
+/* Valid drop target (folder) */
+.tree-item--drop-target {
+  background-color: var(--color-hover, #e8f0fe);
+  outline: 2px dashed var(--color-primary, #4285f4);
+  outline-offset: -2px;
+}
+
+/* Invalid drop target (optional cursor feedback) */
+.tree-item--drop-invalid {
+  cursor: not-allowed;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .tree-item {

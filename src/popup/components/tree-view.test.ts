@@ -957,4 +957,185 @@ describe('tree-view', () => {
       }
     })
   })
+
+  // ========== Story 4-4: Drag-Drop Root Drop Zone Tests ==========
+
+  describe('Story 4-4: root drop zone', () => {
+    const dragFolders: Folder[] = [
+      { id: 'folder-1', name: 'Folder 1', parentId: null },
+    ]
+
+    const dragQueries: Query[] = [
+      {
+        id: 'query-1',
+        name: 'Query 1',
+        sql: 'SELECT 1',
+        folderId: 'folder-1',
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+    ]
+
+    it('should create root drop zone element', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone')
+      expect(rootDropZone).not.toBeNull()
+    })
+
+    it('should have data-droppable="root" attribute', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone')
+      expect(rootDropZone?.getAttribute('data-droppable')).toBe('root')
+    })
+
+    it('should contain drop instruction text', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone')
+      expect(rootDropZone?.textContent).toContain('Drop here to move to root')
+    })
+
+    it('should add active class on dragenter', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone') as HTMLElement
+      const event = new Event('dragenter', { bubbles: true, cancelable: true })
+      rootDropZone.dispatchEvent(event)
+
+      expect(rootDropZone.classList.contains('tree-view__root-drop-zone--active')).toBe(true)
+    })
+
+    it('should remove active class on dragleave when counter reaches zero', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone') as HTMLElement
+
+      // Simulate dragenter first (increments counter to 1)
+      const enterEvent = new Event('dragenter', { bubbles: true, cancelable: true })
+      rootDropZone.dispatchEvent(enterEvent)
+      expect(rootDropZone.classList.contains('tree-view__root-drop-zone--active')).toBe(true)
+
+      // Simulate dragleave (decrements counter to 0)
+      const leaveEvent = new Event('dragleave', { bubbles: true })
+      rootDropZone.dispatchEvent(leaveEvent)
+
+      expect(rootDropZone.classList.contains('tree-view__root-drop-zone--active')).toBe(false)
+    })
+
+    it('should call onQueryDrop with null targetFolderId on drop', () => {
+      const onQueryDrop = vi.fn()
+      const tree = createTreeView({ onQueryDrop })
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders, { onQueryDrop })
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone') as HTMLElement
+
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as any
+      dropEvent.dataTransfer = {
+        getData: vi.fn().mockReturnValue('query-1'),
+      }
+      dropEvent.preventDefault = vi.fn()
+
+      rootDropZone.dispatchEvent(dropEvent)
+
+      expect(onQueryDrop).toHaveBeenCalledWith('query-1', null)
+    })
+
+    it('should remove active class on drop', () => {
+      const onQueryDrop = vi.fn()
+      const tree = createTreeView({ onQueryDrop })
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders, { onQueryDrop })
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone') as HTMLElement
+
+      // Add active class first
+      rootDropZone.classList.add('tree-view__root-drop-zone--active')
+
+      const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as any
+      dropEvent.dataTransfer = {
+        getData: vi.fn().mockReturnValue('query-1'),
+      }
+      dropEvent.preventDefault = vi.fn()
+
+      rootDropZone.dispatchEvent(dropEvent)
+
+      expect(rootDropZone.classList.contains('tree-view__root-drop-zone--active')).toBe(false)
+    })
+
+    it('should call preventDefault on dragover', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, dragFolders)
+
+      const rootDropZone = tree.querySelector('.tree-view__root-drop-zone') as HTMLElement
+
+      const event = new Event('dragover', { bubbles: true, cancelable: true }) as any
+      event.dataTransfer = { dropEffect: 'none' }
+      event.preventDefault = vi.fn()
+
+      rootDropZone.dispatchEvent(event)
+
+      expect(event.preventDefault).toHaveBeenCalled()
+    })
+  })
+
+  describe('Story 4-4: tree-view drag state', () => {
+    const dragQueries: Query[] = [
+      {
+        id: 'query-1',
+        name: 'Query 1',
+        sql: 'SELECT 1',
+        folderId: null,
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+    ]
+
+    it('should add tree-view--dragging class when onDragStart is triggered', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, [])
+
+      const queryItem = tree.querySelector('[data-id="query-1"]') as HTMLElement
+
+      const dragStartEvent = new Event('dragstart', { bubbles: true }) as any
+      dragStartEvent.dataTransfer = {
+        setData: vi.fn(),
+        effectAllowed: '',
+      }
+
+      queryItem.dispatchEvent(dragStartEvent)
+
+      expect(tree.classList.contains('tree-view--dragging')).toBe(true)
+    })
+
+    it('should remove tree-view--dragging class when onDragEnd is triggered', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(dragQueries, [])
+
+      // Add the class first
+      tree.classList.add('tree-view--dragging')
+
+      const queryItem = tree.querySelector('[data-id="query-1"]') as HTMLElement
+      const dragEndEvent = new Event('dragend', { bubbles: true })
+
+      queryItem.dispatchEvent(dragEndEvent)
+
+      expect(tree.classList.contains('tree-view--dragging')).toBe(false)
+    })
+  })
 })
