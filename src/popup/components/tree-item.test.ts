@@ -413,3 +413,338 @@ describe('tree-item', () => {
     })
   })
 })
+
+// ========== Story 4-1: Folder Tree Item Tests ==========
+
+import { createFolderTreeItem, clearFolderDebounceState } from './tree-item'
+import type { Folder } from '../../shared/types/storage.types'
+
+const mockFolder: Folder = {
+  id: 'folder-123',
+  name: 'Test Folder',
+  parentId: null,
+}
+
+describe('folder-tree-item', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    clearFolderDebounceState()
+  })
+
+  describe('createFolderTreeItem', () => {
+    it('should create a div element', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item).toBeInstanceOf(HTMLDivElement)
+    })
+
+    it('should have tree-item class', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.classList.contains('tree-item')).toBe(true)
+    })
+
+    it('should have tree-item--folder modifier class', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.classList.contains('tree-item--folder')).toBe(true)
+    })
+
+    it('should have role="treeitem"', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('role')).toBe('treeitem')
+    })
+
+    it('should have tabindex="0"', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('tabindex')).toBe('0')
+    })
+
+    it('should have data-id attribute with folder id', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('data-id')).toBe('folder-123')
+    })
+
+    it('should have data-type="folder" attribute', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('data-type')).toBe('folder')
+    })
+
+    it('should display folder name', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      const nameSpan = item.querySelector('.tree-item__name')
+      expect(nameSpan?.textContent).toBe('Test Folder')
+    })
+
+    it('should have title attribute for tooltip', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      const nameSpan = item.querySelector('.tree-item__name')
+      expect(nameSpan?.getAttribute('title')).toBe('Test Folder')
+    })
+
+    it('should have folder icon element', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      const icon = item.querySelector('.tree-item__icon')
+      expect(icon).not.toBeNull()
+      expect(icon?.innerHTML).toContain('svg')
+    })
+
+    it('should have chevron element', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      const chevron = item.querySelector('.tree-item__chevron')
+      expect(chevron).not.toBeNull()
+      expect(chevron?.innerHTML).toContain('svg')
+    })
+  })
+
+  describe('expand/collapse state (AC: 2, 3)', () => {
+    it('should not have tree-item--expanded class when isExpanded=false', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.classList.contains('tree-item--expanded')).toBe(false)
+    })
+
+    it('should have tree-item--expanded class when isExpanded=true', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: true, isSelected: false })
+      expect(item.classList.contains('tree-item--expanded')).toBe(true)
+    })
+
+    it('should set aria-expanded="false" when collapsed', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('aria-expanded')).toBe('false')
+    })
+
+    it('should set aria-expanded="true" when expanded', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: true, isSelected: false })
+      expect(item.getAttribute('aria-expanded')).toBe('true')
+    })
+  })
+
+  describe('selection state', () => {
+    it('should not have selected class when isSelected=false', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.classList.contains('tree-item--selected')).toBe(false)
+    })
+
+    it('should have selected class when isSelected=true', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: true })
+      expect(item.classList.contains('tree-item--selected')).toBe(true)
+    })
+
+    it('should set aria-selected="false" when not selected', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      expect(item.getAttribute('aria-selected')).toBe('false')
+    })
+
+    it('should set aria-selected="true" when selected', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: true })
+      expect(item.getAttribute('aria-selected')).toBe('true')
+    })
+  })
+
+  describe('click handler for toggle (AC: 2, 3)', () => {
+    it('should call onToggle with folder id and new expanded state on click', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      item.click()
+
+      // When collapsed (isExpanded: false), clicking should toggle to expanded (true)
+      expect(onToggle).toHaveBeenCalledWith('folder-123', true)
+    })
+
+    it('should call onToggle with false when clicking expanded folder', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: true, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      item.click()
+
+      // When expanded (isExpanded: true), clicking should toggle to collapsed (false)
+      expect(onToggle).toHaveBeenCalledWith('folder-123', false)
+    })
+
+    it('should call onToggle on Enter key', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      const event = new KeyboardEvent('keydown', { key: 'Enter' })
+      item.dispatchEvent(event)
+
+      expect(onToggle).toHaveBeenCalledWith('folder-123', true)
+    })
+
+    it('should call onToggle on Space key', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      const event = new KeyboardEvent('keydown', { key: ' ' })
+      item.dispatchEvent(event)
+
+      expect(onToggle).toHaveBeenCalledWith('folder-123', true)
+    })
+
+    it('should not call onToggle on other keys', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      const event = new KeyboardEvent('keydown', { key: 'Tab' })
+      item.dispatchEvent(event)
+
+      expect(onToggle).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('chevron click (AC: 2, 3)', () => {
+    it('should call onToggle when chevron is clicked', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      const chevron = item.querySelector('.tree-item__chevron') as HTMLElement
+      chevron.click()
+
+      expect(onToggle).toHaveBeenCalledWith('folder-123', true)
+    })
+
+    it('should stop propagation when chevron clicked', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      const chevron = item.querySelector('.tree-item__chevron') as HTMLElement
+      const event = new MouseEvent('click', { bubbles: true })
+      const stopPropagation = vi.spyOn(event, 'stopPropagation')
+      chevron.dispatchEvent(event)
+
+      expect(stopPropagation).toHaveBeenCalled()
+    })
+  })
+
+  describe('nesting level (AC: 4)', () => {
+    it('should not have data-level when level=0', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 0 })
+      expect(item.hasAttribute('data-level')).toBe(false)
+    })
+
+    it('should have data-level="1" when level=1', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 1 })
+      expect(item.getAttribute('data-level')).toBe('1')
+    })
+
+    it('should have data-level="2" when level=2', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 2 })
+      expect(item.getAttribute('data-level')).toBe('2')
+    })
+
+    it('should have aria-level="1" when level=0 (ARIA levels are 1-based)', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 0 })
+      expect(item.getAttribute('aria-level')).toBe('1')
+    })
+
+    it('should have aria-level="2" when level=1', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 1 })
+      expect(item.getAttribute('aria-level')).toBe('2')
+    })
+
+    it('should have aria-level="3" when level=2', () => {
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 2 })
+      expect(item.getAttribute('aria-level')).toBe('3')
+    })
+  })
+
+  describe('ARIA attributes (6.7)', () => {
+    it('should have aria-expanded attribute on folder', () => {
+      const itemCollapsed = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false })
+      const itemExpanded = createFolderTreeItem({ folder: mockFolder, isExpanded: true, isSelected: false })
+
+      expect(itemCollapsed.getAttribute('aria-expanded')).toBe('false')
+      expect(itemExpanded.getAttribute('aria-expanded')).toBe('true')
+    })
+
+    it('should have correct aria-level for nested folders', () => {
+      const itemLevel0 = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 0 })
+      const itemLevel1 = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 1 })
+      const itemLevel2 = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, level: 2 })
+
+      expect(itemLevel0.getAttribute('aria-level')).toBe('1')
+      expect(itemLevel1.getAttribute('aria-level')).toBe('2')
+      expect(itemLevel2.getAttribute('aria-level')).toBe('3')
+    })
+  })
+
+  describe('context menu', () => {
+    it('should call onContextMenu on right-click', () => {
+      const onContextMenu = vi.fn()
+      const item = createFolderTreeItem({
+        folder: mockFolder,
+        isExpanded: false,
+        isSelected: false,
+        onContextMenu,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 150,
+        clientY: 200,
+        bubbles: true,
+      })
+      item.dispatchEvent(event)
+
+      expect(onContextMenu).toHaveBeenCalledWith('folder-123', 150, 200)
+    })
+
+    it('should prevent default browser context menu', () => {
+      const onContextMenu = vi.fn()
+      const item = createFolderTreeItem({
+        folder: mockFolder,
+        isExpanded: false,
+        isSelected: false,
+        onContextMenu,
+      })
+      document.body.appendChild(item)
+
+      const event = new MouseEvent('contextmenu', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+        cancelable: true,
+      })
+
+      const preventDefault = vi.spyOn(event, 'preventDefault')
+      item.dispatchEvent(event)
+
+      expect(preventDefault).toHaveBeenCalled()
+    })
+  })
+
+  describe('click debounce', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should debounce rapid clicks', () => {
+      const onToggle = vi.fn()
+      const item = createFolderTreeItem({ folder: mockFolder, isExpanded: false, isSelected: false, onToggle })
+      document.body.appendChild(item)
+
+      // First click should trigger
+      item.click()
+      expect(onToggle).toHaveBeenCalledTimes(1)
+
+      // Rapid second click (within 300ms) should be ignored
+      vi.advanceTimersByTime(100)
+      item.click()
+      expect(onToggle).toHaveBeenCalledTimes(1)
+
+      // Click after debounce window should trigger
+      vi.advanceTimersByTime(300)
+      item.click()
+      expect(onToggle).toHaveBeenCalledTimes(2)
+    })
+  })
+})

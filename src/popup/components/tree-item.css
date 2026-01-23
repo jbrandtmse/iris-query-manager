@@ -52,7 +52,7 @@
   text-overflow: ellipsis;
 }
 
-/* Indent for nesting (future folder support) */
+/* Indent for nesting */
 .tree-item[data-level="1"] {
   padding-left: calc(var(--space-sm, 8px) + 16px);
 }
@@ -65,9 +65,47 @@
   padding-left: calc(var(--space-sm, 8px) + 48px);
 }
 
+/* ========== Folder Variant (Story 4-1) ========== */
+
+/* Folder modifier */
+.tree-item--folder .tree-item__name {
+  font-weight: 500; /* Bold folder names */
+}
+
+.tree-item--folder .tree-item__icon {
+  color: var(--color-warning, #fbbc04); /* Yellow folder icon */
+}
+
+/* Chevron (expand/collapse indicator) */
+.tree-item__chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: var(--space-xs, 4px);
+  color: var(--color-text-secondary, #5f6368);
+  transition: transform 150ms ease;
+}
+
+.tree-item__chevron svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+/* Chevron rotation for expanded state */
+.tree-item--expanded .tree-item__chevron {
+  transform: rotate(90deg);
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .tree-item {
+    transition: none;
+  }
+
+  .tree-item__chevron {
     transition: none;
   }
 }

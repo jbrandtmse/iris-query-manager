@@ -25,3 +25,16 @@
   word-break: break-word;
   color: var(--color-text, #202124);
 }
+
+.query-preview__metadata {
+  padding: var(--space-xs, 4px) var(--space-sm, 8px);
+  border-top: 1px solid var(--color-border, #dadce0);
+  font-size: 11px;
+  color: var(--color-text-secondary, #5f6368);
+  display: flex;
+  gap: var(--space-md, 16px);
+}
+
+.query-preview__metadata-item {
+  white-space: nowrap;
+}

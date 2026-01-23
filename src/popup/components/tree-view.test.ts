@@ -10,8 +10,11 @@ import {
   getSelectedId,
   cleanup,
   activateSelectedItem,
+  toggleFolder,
+  getExpandedFolders,
+  setExpandedFolders,
 } from './tree-view'
-import { clearDebounceState } from './tree-item'
+import { clearDebounceState, clearFolderDebounceState } from './tree-item'
 import type { Query, Folder } from '../../shared/types/storage.types'
 
 const mockQueries: Query[] = [
@@ -39,6 +42,7 @@ describe('tree-view', () => {
   beforeEach(() => {
     cleanup()
     clearDebounceState() // Clear tree-item debounce state between tests
+    clearFolderDebounceState() // Clear folder debounce state between tests
     document.body.innerHTML = ''
   })
 
@@ -575,6 +579,382 @@ describe('tree-view', () => {
       activateSelectedItem()
 
       expect(onItemActivate).not.toHaveBeenCalled()
+    })
+  })
+
+  // ========== Story 4-1: Folder Hierarchical Rendering Tests ==========
+
+  describe('Story 4-1: hierarchical folder rendering', () => {
+    const foldersForHierarchy: Folder[] = [
+      { id: 'folder-1', name: 'Folder 1', parentId: null },
+      { id: 'folder-2', name: 'Folder 2', parentId: null },
+      { id: 'folder-1-1', name: 'Subfolder 1-1', parentId: 'folder-1' },
+    ]
+
+    const queriesForHierarchy: Query[] = [
+      {
+        id: 'query-root',
+        name: 'Root Query',
+        sql: 'SELECT root',
+        folderId: null,
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+      {
+        id: 'query-in-folder-1',
+        name: 'Query in Folder 1',
+        sql: 'SELECT folder1',
+        folderId: 'folder-1',
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+      {
+        id: 'query-in-subfolder',
+        name: 'Query in Subfolder',
+        sql: 'SELECT subfolder',
+        folderId: 'folder-1-1',
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+    ]
+
+    it('should render folders with tree-item--folder class (7.1)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      const folders = tree.querySelectorAll('.tree-item--folder')
+      expect(folders.length).toBeGreaterThanOrEqual(2) // At least folder-1 and folder-2
+    })
+
+    it('should render folders before queries at same level (7.1)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      const items = tree.querySelectorAll('.tree-item')
+      // First items should be folders (at root level)
+      const firstItem = items[0]
+      expect(firstItem.classList.contains('tree-item--folder')).toBe(true)
+    })
+
+    it('should hide children when folder is collapsed (7.2)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+
+      // Ensure folders are collapsed (default)
+      setExpandedFolders([])
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      // Query in folder-1 should not be visible (folder collapsed)
+      const queryInFolder = tree.querySelector('[data-id="query-in-folder-1"]')
+      expect(queryInFolder).toBeNull()
+    })
+
+    it('should show children when folder is expanded (7.3)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+
+      // Expand folder-1
+      setExpandedFolders(['folder-1'])
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      // Query in folder-1 should be visible
+      const queryInFolder = tree.querySelector('[data-id="query-in-folder-1"]')
+      expect(queryInFolder).not.toBeNull()
+    })
+
+    it('should apply correct indentation to nested items (7.4)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+
+      // Expand folder-1
+      setExpandedFolders(['folder-1'])
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      // Query in folder-1 should have level 1
+      const queryInFolder = tree.querySelector('[data-id="query-in-folder-1"]')
+      expect(queryInFolder?.getAttribute('data-level')).toBe('1')
+    })
+
+    it('should render empty folder correctly (7.5)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+
+      const emptyFolder: Folder[] = [{ id: 'empty-folder', name: 'Empty Folder', parentId: null }]
+      updateTreeView([], emptyFolder)
+
+      const folder = tree.querySelector('[data-id="empty-folder"]')
+      expect(folder).not.toBeNull()
+      expect(folder?.classList.contains('tree-item--folder')).toBe(true)
+    })
+
+    it('should have chevron on folder items', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      const folder = tree.querySelector('.tree-item--folder')
+      const chevron = folder?.querySelector('.tree-item__chevron')
+      expect(chevron).not.toBeNull()
+    })
+
+    it('should have data-type="folder" on folder items', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      updateTreeView(queriesForHierarchy, foldersForHierarchy)
+
+      const folder = tree.querySelector('.tree-item--folder')
+      expect(folder?.getAttribute('data-type')).toBe('folder')
+    })
+  })
+
+  describe('Story 4-1: folder expand/collapse state management', () => {
+    const testFolders: Folder[] = [
+      { id: 'folder-1', name: 'Folder 1', parentId: null },
+    ]
+
+    const testQueries: Query[] = [
+      {
+        id: 'query-1',
+        name: 'Query 1',
+        sql: 'SELECT 1',
+        folderId: 'folder-1',
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+    ]
+
+    it('should track expanded folders via getExpandedFolders()', () => {
+      createTreeView()
+      setExpandedFolders(['folder-1', 'folder-2'])
+      expect(getExpandedFolders()).toContain('folder-1')
+      expect(getExpandedFolders()).toContain('folder-2')
+    })
+
+    it('should update expanded folders via setExpandedFolders()', () => {
+      createTreeView()
+      setExpandedFolders(['folder-1'])
+      expect(getExpandedFolders()).toEqual(['folder-1'])
+
+      setExpandedFolders(['folder-2'])
+      expect(getExpandedFolders()).toEqual(['folder-2'])
+    })
+
+    it('should toggle folder via toggleFolder()', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders([])
+      updateTreeView(testQueries, testFolders)
+
+      // Toggle to expand
+      toggleFolder('folder-1')
+      expect(getExpandedFolders()).toContain('folder-1')
+
+      // Toggle to collapse
+      toggleFolder('folder-1')
+      expect(getExpandedFolders()).not.toContain('folder-1')
+    })
+
+    it('should re-render tree when folder is toggled', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders([])
+      updateTreeView(testQueries, testFolders)
+
+      // Child should not be visible
+      expect(tree.querySelector('[data-id="query-1"]')).toBeNull()
+
+      // Toggle expand
+      toggleFolder('folder-1')
+
+      // Child should now be visible
+      expect(tree.querySelector('[data-id="query-1"]')).not.toBeNull()
+    })
+  })
+
+  describe('Story 4-1: folder onToggle callback', () => {
+    const testFolders: Folder[] = [
+      { id: 'folder-1', name: 'Folder 1', parentId: null },
+    ]
+
+    it('should call onFolderToggle when folder is clicked', () => {
+      vi.useFakeTimers()
+      try {
+        const onFolderToggle = vi.fn()
+        const tree = createTreeView({ onFolderToggle })
+        document.body.appendChild(tree)
+        setExpandedFolders([])
+        updateTreeView([], testFolders, { onFolderToggle })
+
+        const folder = tree.querySelector('[data-id="folder-1"]') as HTMLElement
+        folder.click()
+
+        expect(onFolderToggle).toHaveBeenCalledWith('folder-1', true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
+  describe('Story 4-1: orphan queries handling', () => {
+    it('should render queries with invalid folderId at root level', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+
+      const orphanQuery: Query[] = [
+        {
+          id: 'orphan',
+          name: 'Orphan Query',
+          sql: 'SELECT orphan',
+          folderId: 'non-existent-folder',
+          createdAt: '2026-01-20T00:00:00Z',
+          updatedAt: '2026-01-20T00:00:00Z',
+        },
+      ]
+
+      updateTreeView(orphanQuery, [])
+
+      // Orphan query should be rendered at root level
+      const orphan = tree.querySelector('[data-id="orphan"]')
+      expect(orphan).not.toBeNull()
+      expect(orphan?.hasAttribute('data-level')).toBe(false) // Root level has no data-level
+    })
+  })
+
+  // ========== Story 4-1: Keyboard Navigation for Folders (Task 5) ==========
+
+  describe('Story 4-1: folder keyboard navigation', () => {
+    const navFolders: Folder[] = [
+      { id: 'folder-1', name: 'Folder 1', parentId: null },
+    ]
+
+    const navQueries: Query[] = [
+      {
+        id: 'query-in-folder',
+        name: 'Query in Folder',
+        sql: 'SELECT 1',
+        folderId: 'folder-1',
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+      {
+        id: 'root-query',
+        name: 'Root Query',
+        sql: 'SELECT 2',
+        folderId: null,
+        createdAt: '2026-01-20T00:00:00Z',
+        updatedAt: '2026-01-20T00:00:00Z',
+      },
+    ]
+
+    it('should expand collapsed folder on ArrowRight (5.1)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders([])
+      updateTreeView(navQueries, navFolders)
+
+      // Select the folder
+      selectItem('folder-1')
+
+      // ArrowRight should expand
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(getExpandedFolders()).toContain('folder-1')
+    })
+
+    it('should collapse expanded folder on ArrowLeft (5.2)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders(['folder-1'])
+      updateTreeView(navQueries, navFolders)
+
+      // Select the folder
+      selectItem('folder-1')
+
+      // ArrowLeft should collapse
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(getExpandedFolders()).not.toContain('folder-1')
+    })
+
+    it('should move to parent folder on ArrowLeft from query inside folder (5.3)', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders(['folder-1'])
+      updateTreeView(navQueries, navFolders)
+
+      // Select query inside folder
+      selectItem('query-in-folder')
+
+      // ArrowLeft should select parent folder
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(getSelectedId()).toBe('folder-1')
+    })
+
+    it('should move to first child on ArrowRight for expanded folder', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders(['folder-1'])
+      updateTreeView(navQueries, navFolders)
+
+      // Select folder
+      selectItem('folder-1')
+
+      // ArrowRight on expanded folder should move to first child
+      const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+      tree.dispatchEvent(event)
+
+      expect(getSelectedId()).toBe('query-in-folder')
+    })
+
+    it('should not change selection on ArrowLeft for root level item', () => {
+      const tree = createTreeView()
+      document.body.appendChild(tree)
+      setExpandedFolders([])
+      updateTreeView(navQueries, navFolders)
+
+      // Select root folder (collapsed)
+      selectItem('folder-1')
+
+      // ArrowLeft on collapsed root folder should do nothing
+      const event = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })
+      tree.dispatchEvent(event)
+
+      // Should stay on folder-1
+      expect(getSelectedId()).toBe('folder-1')
+    })
+
+    it('Enter/Space on folder should toggle expand/collapse (5.4)', () => {
+      vi.useFakeTimers()
+      try {
+        const tree = createTreeView()
+        document.body.appendChild(tree)
+        setExpandedFolders([])
+        updateTreeView(navQueries, navFolders)
+
+        let folder = tree.querySelector('[data-id="folder-1"]') as HTMLElement
+
+        // Enter should toggle (expand)
+        folder.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        expect(getExpandedFolders()).toContain('folder-1')
+
+        // Wait for debounce
+        vi.advanceTimersByTime(350)
+
+        // Re-query folder element (it was re-rendered after toggle)
+        folder = tree.querySelector('[data-id="folder-1"]') as HTMLElement
+
+        // Enter again should toggle (collapse)
+        folder.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        expect(getExpandedFolders()).not.toContain('folder-1')
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

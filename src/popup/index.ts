@@ -199,8 +199,8 @@ async function loadQueriesAndFolders(): Promise<void> {
  */
 function handleQuerySelectionChange(query: Query): void {
   selectItem(query.id)
-  // Update preview panel with selected query's SQL (Story 3-3)
-  updateQueryPreview(query.sql)
+  // Update preview panel with full Query object (Story 3-6: includes metadata)
+  updateQueryPreview(query)
 }
 
 /**
@@ -362,6 +362,7 @@ async function handleDeleteQuery(query: Query): Promise<void> {
   const selectedId = currentQueries.find((q) => q.id === query.id)?.id
   if (selectedId) {
     selectItem(null)
+    updateQueryPreview(null)
   }
 
   // Refresh tree view

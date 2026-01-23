@@ -5,7 +5,13 @@
 
 import './tree-view.css'
 import type { Query, Folder } from '../../shared/types/storage.types'
-import { createTreeItem, type TreeItemClickHandler, type TreeItemContextMenuHandler } from './tree-item'
+import {
+  createTreeItem,
+  createFolderTreeItem,
+  type TreeItemClickHandler,
+  type TreeItemContextMenuHandler,
+  type FolderToggleHandler,
+} from './tree-item'
 
 interface TreeViewState {
   selectedId: string | null
@@ -16,6 +22,7 @@ export interface TreeViewOptions {
   onItemSelect?: (query: Query) => void
   onItemActivate?: (query: Query) => void // Called on Enter/click for paste action
   onItemContextMenu?: TreeItemContextMenuHandler // Called on right-click
+  onFolderToggle?: FolderToggleHandler // Called when folder expand/collapse is toggled
 }
 
 // Module state
@@ -23,9 +30,91 @@ let treeViewElement: HTMLDivElement | null = null
 let state: TreeViewState = { selectedId: null }
 let currentOptions: TreeViewOptions = {}
 let currentQueries: Query[] = []
+let currentFolders: Folder[] = []
+
+// Track expanded folder IDs
+const expandedFolders = new Set<string>()
 
 // Bound event handler for cleanup
 let keydownHandler: ((e: KeyboardEvent) => void) | null = null
+
+// ========== Tree Node Structure for Hierarchical Rendering ==========
+
+interface TreeNode {
+  type: 'folder' | 'query'
+  item: Folder | Query
+  children: TreeNode[]
+}
+
+/**
+ * Build hierarchical tree structure from flat folders and queries
+ */
+function buildTree(folders: Folder[], queries: Query[]): TreeNode[] {
+  const folderMap = new Map<string, Folder>()
+  const folderNodes = new Map<string, TreeNode>()
+  const rootNodes: TreeNode[] = []
+
+  // Create folder map for lookup
+  folders.forEach((folder) => {
+    folderMap.set(folder.id, folder)
+    folderNodes.set(folder.id, { type: 'folder', item: folder, children: [] })
+  })
+
+  // Build folder hierarchy
+  folders.forEach((folder) => {
+    const node = folderNodes.get(folder.id)!
+    if (folder.parentId === null) {
+      rootNodes.push(node)
+    } else {
+      const parentNode = folderNodes.get(folder.parentId)
+      if (parentNode) {
+        parentNode.children.push(node)
+      } else {
+        // Orphan folder (parent doesn't exist) - treat as root
+        rootNodes.push(node)
+      }
+    }
+  })
+
+  // Add queries to appropriate folders or root
+  queries.forEach((query) => {
+    const queryNode: TreeNode = { type: 'query', item: query, children: [] }
+    if (query.folderId === null) {
+      rootNodes.push(queryNode)
+    } else {
+      const parentFolder = folderNodes.get(query.folderId)
+      if (parentFolder) {
+        parentFolder.children.push(queryNode)
+      } else {
+        // Orphan query (folder doesn't exist) - treat as root
+        rootNodes.push(queryNode)
+      }
+    }
+  })
+
+  // Sort: folders first (alphabetically), then queries (alphabetically)
+  const sortNodes = (nodes: TreeNode[]): void => {
+    nodes.sort((a, b) => {
+      // Folders before queries
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1
+      }
+      // Alphabetically by name
+      const nameA = a.type === 'folder' ? (a.item as Folder).name : (a.item as Query).name
+      const nameB = b.type === 'folder' ? (b.item as Folder).name : (b.item as Query).name
+      return nameA.localeCompare(nameB)
+    })
+    // Recursively sort children
+    nodes.forEach((node) => {
+      if (node.children.length > 0) {
+        sortNodes(node.children)
+      }
+    })
+  }
+
+  sortNodes(rootNodes)
+  return rootNodes
+}
 
 /**
  * Create the tree view container
@@ -45,6 +134,7 @@ export function createTreeView(options?: TreeViewOptions): HTMLDivElement {
   // Reset state when creating new tree
   state = { selectedId: null }
   currentQueries = []
+  currentFolders = []
 
   // Add keyboard navigation handler
   keydownHandler = handleTreeKeydown
@@ -68,14 +158,15 @@ export function updateTreeView(
     currentOptions = options
   }
 
-  // Store queries for keyboard navigation
+  // Store data for keyboard navigation and re-renders
   currentQueries = queries
+  currentFolders = folders
 
   // Clear existing content
   treeViewElement.innerHTML = ''
 
-  // Show empty state if no queries
-  if (queries.length === 0) {
+  // Show empty state if no queries AND no folders
+  if (queries.length === 0 && folders.length === 0) {
     treeViewElement.appendChild(createEmptyState())
     return
   }
@@ -84,26 +175,96 @@ export function updateTreeView(
   const list = document.createElement('div')
   list.className = 'tree-view__list'
 
-  // Render queries (flat for now, folders in Epic 4)
-  queries.forEach((query) => {
-    const item = createTreeItem({
-      query,
-      isSelected: state.selectedId === query.id,
-      onClick: (id) => {
-        selectItem(id)
-        const selectedQuery = queries.find((q) => q.id === id)
-        if (selectedQuery) {
-          // Click triggers both selection update and activation (paste)
-          currentOptions.onItemSelect?.(selectedQuery)
-          currentOptions.onItemActivate?.(selectedQuery)
-        }
-      },
-      onContextMenu: currentOptions.onItemContextMenu,
-    })
-    list.appendChild(item)
-  })
+  // Build hierarchical tree and render
+  const tree = buildTree(folders, queries)
+  renderTree(tree, list, 0)
 
   treeViewElement.appendChild(list)
+}
+
+/**
+ * Recursively render tree nodes
+ */
+function renderTree(nodes: TreeNode[], container: HTMLElement, level: number): void {
+  for (const node of nodes) {
+    if (node.type === 'folder') {
+      const folder = node.item as Folder
+      const isExpanded = expandedFolders.has(folder.id)
+
+      const folderItem = createFolderTreeItem({
+        folder,
+        isExpanded,
+        isSelected: state.selectedId === folder.id,
+        level,
+        onToggle: handleFolderToggle,
+        onContextMenu: currentOptions.onItemContextMenu,
+      })
+      container.appendChild(folderItem)
+
+      // Only render children if expanded
+      if (isExpanded && node.children.length > 0) {
+        renderTree(node.children, container, level + 1)
+      }
+    } else {
+      // Query item
+      const query = node.item as Query
+      const queryItem = createTreeItem({
+        query,
+        isSelected: state.selectedId === query.id,
+        level,
+        onClick: (id) => {
+          selectItem(id)
+          const selectedQuery = currentQueries.find((q) => q.id === id)
+          if (selectedQuery) {
+            currentOptions.onItemSelect?.(selectedQuery)
+            currentOptions.onItemActivate?.(selectedQuery)
+          }
+        },
+        onContextMenu: currentOptions.onItemContextMenu,
+      })
+      container.appendChild(queryItem)
+    }
+  }
+}
+
+/**
+ * Handle folder toggle (expand/collapse)
+ */
+function handleFolderToggle(folderId: string, isExpanded: boolean): void {
+  if (isExpanded) {
+    expandedFolders.add(folderId)
+  } else {
+    expandedFolders.delete(folderId)
+  }
+
+  // Notify external callback
+  currentOptions.onFolderToggle?.(folderId, isExpanded)
+
+  // Re-render tree with updated state
+  updateTreeView(currentQueries, currentFolders, currentOptions)
+}
+
+/**
+ * Toggle folder expand/collapse state
+ */
+export function toggleFolder(folderId: string): void {
+  const isCurrentlyExpanded = expandedFolders.has(folderId)
+  handleFolderToggle(folderId, !isCurrentlyExpanded)
+}
+
+/**
+ * Get list of expanded folder IDs
+ */
+export function getExpandedFolders(): string[] {
+  return Array.from(expandedFolders)
+}
+
+/**
+ * Set expanded folder IDs
+ */
+export function setExpandedFolders(folderIds: string[]): void {
+  expandedFolders.clear()
+  folderIds.forEach((id) => expandedFolders.add(id))
 }
 
 /**
@@ -156,14 +317,16 @@ function createEmptyState(): HTMLDivElement {
  * Handle keyboard navigation within the tree
  */
 function handleTreeKeydown(e: KeyboardEvent): void {
-  if (!treeViewElement || currentQueries.length === 0) return
+  if (!treeViewElement) return
 
   const items = Array.from(treeViewElement.querySelectorAll('.tree-item')) as HTMLElement[]
   if (items.length === 0) return
 
   const currentIndex = items.findIndex((item) => item.getAttribute('data-id') === state.selectedId)
+  const currentItem = currentIndex >= 0 ? items[currentIndex] : null
 
   let newIndex = -1
+  let handled = false
 
   switch (e.key) {
     case 'ArrowDown':
@@ -184,6 +347,49 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       }
       break
 
+    case 'ArrowRight':
+      e.preventDefault()
+      if (currentItem && currentItem.getAttribute('data-type') === 'folder') {
+        const folderId = currentItem.getAttribute('data-id')
+        if (folderId) {
+          const isExpanded = expandedFolders.has(folderId)
+          if (!isExpanded) {
+            // Expand collapsed folder
+            handleFolderToggle(folderId, true)
+            handled = true
+          } else {
+            // Move to first child if expanded
+            if (currentIndex < items.length - 1) {
+              newIndex = currentIndex + 1
+            }
+          }
+        }
+      }
+      break
+
+    case 'ArrowLeft':
+      e.preventDefault()
+      if (currentItem) {
+        const itemType = currentItem.getAttribute('data-type')
+        const itemId = currentItem.getAttribute('data-id')
+
+        if (itemType === 'folder' && itemId && expandedFolders.has(itemId)) {
+          // Collapse expanded folder
+          handleFolderToggle(itemId, false)
+          handled = true
+        } else {
+          // Move to parent folder (if not at root)
+          const parentId = findParentFolderId(itemId)
+          if (parentId) {
+            selectItem(parentId)
+            const parentItem = treeViewElement?.querySelector(`[data-id="${parentId}"]`) as HTMLElement
+            parentItem?.focus()
+            handled = true
+          }
+        }
+      }
+      break
+
     case 'Home':
       e.preventDefault()
       newIndex = 0
@@ -198,7 +404,7 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       return
   }
 
-  if (newIndex >= 0 && newIndex < items.length) {
+  if (!handled && newIndex >= 0 && newIndex < items.length) {
     const newId = items[newIndex].getAttribute('data-id')
     if (newId) {
       selectItem(newId)
@@ -212,6 +418,27 @@ function handleTreeKeydown(e: KeyboardEvent): void {
       }
     }
   }
+}
+
+/**
+ * Find parent folder ID for a given item
+ */
+function findParentFolderId(itemId: string | null): string | null {
+  if (!itemId) return null
+
+  // Check if item is a query
+  const query = currentQueries.find((q) => q.id === itemId)
+  if (query && query.folderId) {
+    return query.folderId
+  }
+
+  // Check if item is a folder
+  const folder = currentFolders.find((f) => f.id === itemId)
+  if (folder && folder.parentId) {
+    return folder.parentId
+  }
+
+  return null
 }
 
 /**
@@ -237,5 +464,7 @@ export function cleanup(): void {
   keydownHandler = null
   treeViewElement = null
   currentQueries = []
+  currentFolders = []
   state = { selectedId: null }
+  expandedFolders.clear()
 }

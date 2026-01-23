@@ -64,12 +64,12 @@ development_status:
   3-3-implement-query-preview-panel: done
   3-4-implement-one-click-paste: done
   3-5-implement-context-menu-rename-delete: done
-  3-6-display-query-metadata: backlog
+  3-6-display-query-metadata: done
   epic-3-retrospective: optional
 
   # Epic 4: Folder Organization
-  epic-4: backlog
-  4-1-implement-tree-item-component-folder-variant: backlog
+  epic-4: in-progress
+  4-1-implement-tree-item-component-folder-variant: done
   4-2-implement-create-folder-functionality: backlog
   4-3-implement-folder-rename-delete: backlog
   4-4-implement-drag-drop-queries: backlog
