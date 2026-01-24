@@ -46,12 +46,12 @@ describe('header', () => {
       expect(actions).not.toBeNull()
     })
 
-    it('should have three icon buttons in actions', () => {
+    it('should have four icon buttons in actions', () => {
       const header = createHeader()
       const buttons = header.querySelectorAll('.icon-button')
 
-      // Capture, New Folder, and Menu buttons
-      expect(buttons).toHaveLength(3)
+      // Capture, New Folder, Export, and Menu buttons
+      expect(buttons).toHaveLength(4)
     })
 
     describe('capture button', () => {
@@ -176,14 +176,58 @@ describe('header', () => {
       })
     })
 
+    describe('export button (Story 5-1)', () => {
+      it('should have js-export-btn class', () => {
+        const header = createHeader()
+        const exportBtn = header.querySelector('.js-export-btn')
+
+        expect(exportBtn).not.toBeNull()
+      })
+
+      it('should have aria-label "Export all"', () => {
+        const header = createHeader()
+        const exportBtn = header.querySelector('.js-export-btn')
+
+        expect(exportBtn?.getAttribute('aria-label')).toBe('Export all')
+      })
+
+      it('should contain download SVG icon', () => {
+        const header = createHeader()
+        const exportBtn = header.querySelector('.js-export-btn')
+        const svg = exportBtn?.querySelector('svg')
+
+        expect(svg).not.toBeNull()
+        // Download icon has path and polyline
+        expect(exportBtn?.innerHTML).toContain('path')
+      })
+
+      it('should call onExportClick when clicked', () => {
+        const onExportClick = vi.fn()
+        const header = createHeader({ onExportClick })
+        const exportBtn = header.querySelector('.js-export-btn') as HTMLButtonElement
+
+        exportBtn.click()
+
+        expect(onExportClick).toHaveBeenCalledTimes(1)
+      })
+
+      it('should not throw when onExportClick is undefined', () => {
+        const header = createHeader()
+        const exportBtn = header.querySelector('.js-export-btn') as HTMLButtonElement
+
+        expect(() => exportBtn.click()).not.toThrow()
+      })
+    })
+
     describe('button order', () => {
-      it('should have capture button, then new folder button, then menu button', () => {
+      it('should have capture, new folder, export, menu buttons in order', () => {
         const header = createHeader()
         const buttons = header.querySelectorAll('.icon-button')
 
         expect(buttons[0].classList.contains('js-capture-btn')).toBe(true)
         expect(buttons[1].classList.contains('js-new-folder-btn')).toBe(true)
-        expect(buttons[2].classList.contains('js-menu-btn')).toBe(true)
+        expect(buttons[2].classList.contains('js-export-btn')).toBe(true)
+        expect(buttons[3].classList.contains('js-menu-btn')).toBe(true)
       })
     })
 
@@ -192,7 +236,7 @@ describe('header', () => {
         const header = createHeader({})
 
         expect(header).toBeInstanceOf(HTMLElement)
-        expect(header.querySelectorAll('.icon-button')).toHaveLength(3)
+        expect(header.querySelectorAll('.icon-button')).toHaveLength(4)
       })
 
       it('should work with no options provided', () => {

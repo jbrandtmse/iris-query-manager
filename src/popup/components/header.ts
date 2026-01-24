@@ -10,6 +10,7 @@ import { ICONS } from '../icons'
 export interface HeaderOptions {
   onCaptureClick?: () => void
   onNewFolderClick?: () => void
+  onExportClick?: () => void
   onMenuClick?: () => void
 }
 
@@ -48,6 +49,14 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
     onClick: options.onNewFolderClick,
   })
 
+  // Export button (Story 5-1)
+  const exportButton = createIconButton({
+    icon: ICONS.download,
+    label: 'Export all',
+    className: 'js-export-btn',
+    onClick: options.onExportClick,
+  })
+
   // Menu button (...)
   const menuButton = createIconButton({
     icon: ICONS.moreVertical,
@@ -58,6 +67,7 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
 
   actions.appendChild(captureButton)
   actions.appendChild(newFolderButton)
+  actions.appendChild(exportButton)
   actions.appendChild(menuButton)
 
   header.appendChild(title)

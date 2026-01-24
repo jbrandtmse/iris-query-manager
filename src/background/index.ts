@@ -3,6 +3,7 @@ import { isSmpUrl } from '../shared/utils/url-utils'
 import { setActiveState, setInactiveState } from './icon-state'
 import { sendToContentScript } from '../shared/services/message-service'
 import * as storageService from '../shared/services/storage-service'
+import { exportAll } from '../shared/services/import-export-service'
 
 console.log('[IRIS Query Manager] Service worker initialized')
 
@@ -183,6 +184,14 @@ chrome.runtime.onMessage.addListener(
     if (message.type === 'MOVE_FOLDER') {
       const { folderId, targetParentId } = message.payload
       storageService.moveFolder(folderId, targetParentId).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle EXPORT_ALL: Export all queries and folders (Story 5-1)
+    if (message.type === 'EXPORT_ALL') {
+      exportAll().then((result) => {
         sendResponse(result)
       })
       return true // Async response

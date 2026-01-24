@@ -21,7 +21,9 @@ import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
+import type { ExportData } from '../shared/services/import-export-service'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
+import { downloadJsonFile, generateExportFilename } from '../shared/utils/file-utils'
 
 // Module-level references for component access
 let captureFormElement: HTMLDivElement | null = null
@@ -50,6 +52,7 @@ function initializePopup(): void {
   const header = createHeader({
     onCaptureClick: handleCaptureClick,
     onNewFolderClick: handleNewFolderClick,
+    onExportClick: handleExportAll,
     onMenuClick: handleMenuClick,
   })
 
@@ -187,6 +190,45 @@ async function loadFoldersForDropdown(): Promise<void> {
 function handleMenuClick(): void {
   console.log('[IRIS Query Manager] Menu button clicked')
   // Will open menu dropdown in future story
+}
+
+/**
+ * Format count with singular/plural noun
+ * @param count - The number to format
+ * @param singular - Singular form (e.g., "query")
+ * @param plural - Plural form (e.g., "queries")
+ * @returns Formatted string (e.g., "1 query" or "2 queries")
+ */
+function formatCount(count: number, singular: string, plural: string): string {
+  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`
+}
+
+/**
+ * Handle export button click - export all queries and folders (Story 5-1)
+ * Sends EXPORT_ALL message to service worker, triggers JSON file download,
+ * and displays success/error toast feedback.
+ */
+async function handleExportAll(): Promise<void> {
+  const result = await sendToServiceWorker<ExportData>({ type: 'EXPORT_ALL' })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  const data = result.data
+  const filename = generateExportFilename()
+
+  try {
+    downloadJsonFile(data, filename)
+  } catch (err) {
+    showToast('Failed to download file', 'error')
+    return
+  }
+
+  const queryText = formatCount(data.queries.length, 'query', 'queries')
+  const folderText = formatCount(data.folders.length, 'folder', 'folders')
+  showToast(`Exported ${queryText} and ${folderText}`, 'success')
 }
 
 /**
