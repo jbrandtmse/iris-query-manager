@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Query, Folder, StorageSchema } from '../types/storage.types'
-import { exportAll, exportFolder, getDescendantFolderIds } from './import-export-service'
+import {
+  exportAll,
+  exportFolder,
+  getDescendantFolderIds,
+  validateImportData,
+  getImportPreview,
+  type ExportData,
+} from './import-export-service'
 
 // Mock chrome.storage.local
 const createMockStorage = () => {
@@ -449,6 +456,579 @@ describe('import-export-service', () => {
           /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
         )
       }
+    })
+  })
+
+  describe('validateImportData', () => {
+    const validExportData: ExportData = {
+      version: '1.0',
+      exportedAt: '2026-01-20T10:00:00.000Z',
+      folders: [
+        { id: 'folder-1', name: 'Work', parentId: null },
+      ],
+      queries: [
+        {
+          id: 'query-1',
+          name: 'Test Query',
+          sql: 'SELECT * FROM users',
+          folderId: null,
+          createdAt: '2026-01-20T10:00:00.000Z',
+          updatedAt: '2026-01-20T10:00:00.000Z',
+        },
+      ],
+    }
+
+    it('should accept valid ExportData structure', () => {
+      const result = validateImportData(validExportData)
+
+      expect(result.valid).toBe(true)
+      expect(result.error).toBeUndefined()
+    })
+
+    it('should accept empty folders and queries arrays', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('should reject null data', () => {
+      const result = validateImportData(null)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file must be a JSON object')
+    })
+
+    it('should reject non-object data', () => {
+      const result = validateImportData('not an object')
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file must be a JSON object')
+    })
+
+    it('should reject missing version field', () => {
+      const data = {
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file missing version field')
+    })
+
+    it('should reject non-string version field', () => {
+      const data = {
+        version: 1.0,
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file missing version field')
+    })
+
+    it('should reject missing folders array', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file missing folders array')
+    })
+
+    it('should reject non-array folders', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: 'not an array',
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file missing folders array')
+    })
+
+    it('should reject missing queries array', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Import file missing queries array')
+    })
+
+    it('should reject folder without id', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ name: 'Work', parentId: null }],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Folder at index 0 missing valid id')
+    })
+
+    it('should reject folder with empty id', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: '', name: 'Work', parentId: null }],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Folder at index 0 missing valid id')
+    })
+
+    it('should reject folder without name', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: 'folder-1', parentId: null }],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Folder at index 0 missing name')
+    })
+
+    it('should reject folder with invalid parentId type', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: 'folder-1', name: 'Work', parentId: 123 }],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Folder "Work" has invalid parentId')
+    })
+
+    it('should accept folder with null parentId', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('should accept folder with string parentId', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [
+          { id: 'folder-1', name: 'Work', parentId: null },
+          { id: 'folder-2', name: 'Subwork', parentId: 'folder-1' },
+        ],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('should reject query without id', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query at index 0 missing valid id')
+    })
+
+    it('should reject query without name', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query at index 0 missing name')
+    })
+
+    it('should reject query without sql', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query "Test" missing sql content')
+    })
+
+    it('should reject query without createdAt', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: null,
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query "Test" missing createdAt')
+    })
+
+    it('should reject query without updatedAt', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query "Test" missing updatedAt')
+    })
+
+    it('should reject query with invalid folderId type', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: 123,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query "Test" has invalid folderId')
+    })
+
+    it('should accept query with null folderId', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('should accept query with string folderId', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Test',
+            sql: 'SELECT 1',
+            folderId: 'folder-1',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('should report correct index for invalid folder', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [
+          { id: 'folder-1', name: 'Valid', parentId: null },
+          { id: 'folder-2', name: 'Also Valid', parentId: null },
+          { name: 'Invalid - no id', parentId: null }, // index 2
+        ],
+        queries: [],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Folder at index 2 missing valid id')
+    })
+
+    it('should report correct index for invalid query', () => {
+      const data = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Valid',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            name: 'Invalid', // index 1, missing id
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = validateImportData(data)
+
+      expect(result.valid).toBe(false)
+      expect(result.error).toBe('Query at index 1 missing valid id')
+    })
+  })
+
+  describe('getImportPreview', () => {
+    it('should calculate correct folder and query counts', () => {
+      const data: ExportData = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [
+          { id: 'folder-1', name: 'Work', parentId: null },
+          { id: 'folder-2', name: 'Personal', parentId: null },
+          { id: 'folder-3', name: 'Subwork', parentId: 'folder-1' },
+        ],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'folder-1',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'Q2',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const preview = getImportPreview(data)
+
+      expect(preview.folderCount).toBe(3)
+      expect(preview.queryCount).toBe(2)
+    })
+
+    it('should extract root-level folder names', () => {
+      const data: ExportData = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [
+          { id: 'folder-1', name: 'Work', parentId: null },
+          { id: 'folder-2', name: 'Personal', parentId: null },
+          { id: 'folder-3', name: 'Subwork', parentId: 'folder-1' }, // Not root
+        ],
+        queries: [],
+      }
+
+      const preview = getImportPreview(data)
+
+      expect(preview.folderNames).toHaveLength(2)
+      expect(preview.folderNames).toContain('Work')
+      expect(preview.folderNames).toContain('Personal')
+      expect(preview.folderNames).not.toContain('Subwork')
+    })
+
+    it('should count root queries correctly', () => {
+      const data: ExportData = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'folder-1', // In folder
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'Q2',
+            sql: 'SELECT 2',
+            folderId: null, // Root
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-3',
+            name: 'Q3',
+            sql: 'SELECT 3',
+            folderId: null, // Root
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const preview = getImportPreview(data)
+
+      expect(preview.rootQueryCount).toBe(2)
+    })
+
+    it('should handle empty data', () => {
+      const data: ExportData = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [],
+      }
+
+      const preview = getImportPreview(data)
+
+      expect(preview.folderCount).toBe(0)
+      expect(preview.queryCount).toBe(0)
+      expect(preview.folderNames).toEqual([])
+      expect(preview.rootQueryCount).toBe(0)
+    })
+
+    it('should handle all queries at root level', () => {
+      const data: ExportData = {
+        version: '1.0',
+        exportedAt: '2026-01-20T10:00:00.000Z',
+        folders: [],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'Q2',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const preview = getImportPreview(data)
+
+      expect(preview.rootQueryCount).toBe(2)
+      expect(preview.queryCount).toBe(2)
     })
   })
 })

@@ -21,7 +21,9 @@ import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
-import type { ExportData } from '../shared/services/import-export-service'
+import type { ExportData, ImportPreview as ImportPreviewData } from '../shared/services/import-export-service'
+import { parseImportFile, getImportPreview } from '../shared/services/import-export-service'
+import { renderImportPreview } from './components/import-preview'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
 import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 
@@ -32,6 +34,9 @@ let currentFolderFormParentId: string | null = null
 let treeViewElement: HTMLDivElement | null = null
 let currentQueries: Query[] = []
 let currentFolders: Folder[] = []
+// Import state (Story 5-3)
+let pendingImportData: ExportData | null = null
+let importFileInput: HTMLInputElement | null = null
 
 /**
  * Initialize the popup UI
@@ -53,8 +58,12 @@ function initializePopup(): void {
     onCaptureClick: handleCaptureClick,
     onNewFolderClick: handleNewFolderClick,
     onExportClick: handleExportAll,
+    onImportClick: handleImportClick,
     onMenuClick: handleMenuClick,
   })
+
+  // Create hidden file input for import (Story 5-3 FR18)
+  importFileInput = setupImportInput()
 
   // Create capture form (hidden by default)
   captureFormElement = createCaptureForm({
@@ -715,6 +724,102 @@ async function handleFolderDrop(folderId: string, targetParentId: string | null)
   if (targetParentId && !expandedIds.includes(targetParentId)) {
     toggleFolder(targetParentId)
   }
+}
+
+// ============================================================
+// Import Functions (Story 5-3)
+// ============================================================
+
+/**
+ * Create and manage file input for import (FR18)
+ * Hidden input element that triggers file picker
+ */
+function setupImportInput(): HTMLInputElement {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.style.display = 'none'
+  input.id = 'import-file-input'
+
+  input.addEventListener('change', async (e) => {
+    const target = e.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (file) {
+      await handleImportFile(file)
+    }
+    // Reset input so same file can be selected again
+    target.value = ''
+  })
+
+  document.body.appendChild(input)
+  return input
+}
+
+/**
+ * Handle Import button click - trigger file picker (AC1)
+ */
+function handleImportClick(): void {
+  importFileInput?.click()
+}
+
+/**
+ * Handle file input change event (FR18)
+ * Parses and validates the selected file
+ */
+async function handleImportFile(file: File): Promise<void> {
+  const result = await parseImportFile(file)
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Store for merge/replace actions
+  pendingImportData = result.data
+
+  // Show preview (AC4)
+  const preview = getImportPreview(result.data)
+  showImportPreviewOverlay(preview)
+}
+
+/**
+ * Show import preview overlay (AC4)
+ * Creates modal-like overlay with preview and action buttons
+ */
+function showImportPreviewOverlay(preview: ImportPreviewData): void {
+  // Create overlay container
+  const overlay = document.createElement('div')
+  overlay.className = 'import-overlay js-import-overlay'
+
+  const previewContainer = document.createElement('div')
+  overlay.appendChild(previewContainer)
+
+  renderImportPreview(previewContainer, preview, {
+    onMerge: () => {
+      // Will be implemented in Story 5-4
+      hideImportPreviewOverlay()
+      showToast('Merge not yet implemented', 'info')
+    },
+    onReplace: () => {
+      // Will be implemented in Story 5-5
+      hideImportPreviewOverlay()
+      showToast('Replace not yet implemented', 'info')
+    },
+    onCancel: () => {
+      hideImportPreviewOverlay()
+      pendingImportData = null
+    },
+  })
+
+  document.body.appendChild(overlay)
+}
+
+/**
+ * Hide import preview overlay
+ */
+function hideImportPreviewOverlay(): void {
+  const overlay = document.querySelector('.js-import-overlay')
+  overlay?.remove()
 }
 
 // Initialize on DOM ready

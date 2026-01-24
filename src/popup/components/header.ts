@@ -11,6 +11,7 @@ export interface HeaderOptions {
   onCaptureClick?: () => void
   onNewFolderClick?: () => void
   onExportClick?: () => void
+  onImportClick?: () => void
   onMenuClick?: () => void
 }
 
@@ -57,6 +58,14 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
     onClick: options.onExportClick,
   })
 
+  // Import button (Story 5-3)
+  const importButton = createIconButton({
+    icon: ICONS.upload,
+    label: 'Import',
+    className: 'js-import-btn',
+    onClick: options.onImportClick,
+  })
+
   // Menu button (...)
   const menuButton = createIconButton({
     icon: ICONS.moreVertical,
@@ -68,6 +77,7 @@ export function createHeader(options: HeaderOptions = {}): HTMLElement {
   actions.appendChild(captureButton)
   actions.appendChild(newFolderButton)
   actions.appendChild(exportButton)
+  actions.appendChild(importButton)
   actions.appendChild(menuButton)
 
   header.appendChild(title)

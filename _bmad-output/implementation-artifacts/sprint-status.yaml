@@ -80,7 +80,7 @@ development_status:
   epic-5: in-progress
   5-1-implement-export-all-functionality: done
   5-2-implement-export-selected-folder: done
-  5-3-implement-import-file-selection-validation: backlog
+  5-3-implement-import-file-selection-validation: done
   5-4-implement-import-merge-option: backlog
   5-5-implement-import-replace-option: backlog
   epic-5-retrospective: optional

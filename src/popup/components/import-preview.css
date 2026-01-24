@@ -1,0 +1,141 @@
+/**
+ * Import Preview Component Styles
+ * Modal-like preview showing import summary before merge/replace
+ */
+
+.import-preview {
+  background: var(--color-bg);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  max-width: 320px;
+  width: 100%;
+}
+
+.import-preview__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.import-preview__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.import-preview__close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius);
+}
+
+.import-preview__close:hover {
+  background: var(--color-hover);
+}
+
+.import-preview__content {
+  padding: var(--space-md);
+}
+
+.import-preview__summary {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: var(--space-md);
+}
+
+.import-preview__separator {
+  margin: 0 var(--space-sm);
+  color: var(--color-text-secondary);
+}
+
+.import-preview__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: var(--space-xs);
+}
+
+.import-preview__folder-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.import-preview__folder-chip {
+  background: var(--color-hover);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+}
+
+.import-preview__root-queries {
+  margin-top: var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.import-preview__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Overlay for modal-like behavior */
+.import-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+/* Button base styles (shared with other components) */
+.btn {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+}
+
+.btn--primary:hover {
+  background: #3b78e7;
+}
+
+.btn--secondary {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+}
+
+.btn--secondary:hover {
+  background: var(--color-hover);
+}
