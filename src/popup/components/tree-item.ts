@@ -35,6 +35,7 @@ export function clearFolderDebounceState(): void {
 
 export type TreeItemContextMenuHandler = (id: string, x: number, y: number) => void
 export type QueryDropHandler = (queryId: string, targetFolderId: string | null) => void
+export type FolderDropHandler = (folderId: string, targetParentId: string | null) => void
 
 export interface TreeItemOptions {
   query: Query
@@ -150,13 +151,16 @@ export interface TreeItemFolderOptions {
   onToggle?: FolderToggleHandler
   onContextMenu?: TreeItemContextMenuHandler
   onQueryDrop?: QueryDropHandler
+  onFolderDrop?: FolderDropHandler  // Story 4-5: folder drag-drop
+  onDragStart?: (folderId: string) => void  // Story 4-5
+  onDragEnd?: () => void  // Story 4-5
 }
 
 /**
  * Create a tree item element for a folder
  */
 export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivElement {
-  const { folder, isExpanded, isSelected, level = 0, onToggle, onContextMenu, onQueryDrop } = options
+  const { folder, isExpanded, isSelected, level = 0, onToggle, onContextMenu, onQueryDrop, onFolderDrop, onDragStart, onDragEnd } = options
 
   const item = document.createElement('div')
   item.className = 'tree-item tree-item--folder'
@@ -176,6 +180,11 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
 
   // Drop target attributes (Story 4-4)
   item.setAttribute('data-droppable', 'folder')
+
+  // Drag source attributes (Story 4-5)
+  item.setAttribute('draggable', 'true')
+  item.setAttribute('data-draggable', 'folder')
+  item.setAttribute('data-folder-id', folder.id)
 
   // Set level for CSS indentation and ARIA
   item.setAttribute('aria-level', String(level + 1)) // ARIA levels are 1-based
@@ -240,7 +249,24 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
     onContextMenu?.(folder.id, e.clientX, e.clientY)
   })
 
-  // ========== Drop event handlers (Story 4-4) ==========
+  // ========== Drag events for folder (Story 4-5) ==========
+
+  // Drag start handler - set folder data transfer
+  item.addEventListener('dragstart', (e) => {
+    if (!e.dataTransfer) return
+    e.dataTransfer.setData('application/x-folder-id', folder.id)
+    e.dataTransfer.effectAllowed = 'move'
+    item.classList.add('tree-item--dragging')
+    onDragStart?.(folder.id)
+  })
+
+  // Drag end handler - cleanup
+  item.addEventListener('dragend', () => {
+    item.classList.remove('tree-item--dragging')
+    onDragEnd?.()
+  })
+
+  // ========== Drop event handlers (Story 4-4, 4-5) ==========
 
   // Track dragenter/dragleave count to handle child element events
   // This prevents flickering when dragging over child elements (icon, name span)
@@ -271,22 +297,36 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
     }
   })
 
-  // Drop handler - move query to folder
+  // Drop handler - move query or folder to this folder
   item.addEventListener('drop', (e) => {
     e.preventDefault()
     // Reset counter and remove class on drop
     dragEnterCount = 0
     item.classList.remove('tree-item--drop-target')
 
+    // Check what type of item is being dropped
     const queryId = e.dataTransfer?.getData('application/x-query-id')
-    // Validate queryId is a non-empty string before acting
+    const droppedFolderId = e.dataTransfer?.getData('application/x-folder-id')
+
     if (queryId && typeof queryId === 'string' && queryId.trim().length > 0) {
+      // Query drop (Story 4-4)
       // Expand folder if collapsed
       if (!isExpanded && onToggle) {
         onToggle(folder.id, true)
       }
       // Notify parent to handle the move
       onQueryDrop?.(queryId, folder.id)
+    } else if (droppedFolderId && typeof droppedFolderId === 'string' && droppedFolderId.trim().length > 0) {
+      // Folder drop (Story 4-5)
+      // Prevent dropping folder onto itself
+      if (droppedFolderId !== folder.id) {
+        // Expand folder if collapsed
+        if (!isExpanded && onToggle) {
+          onToggle(folder.id, true)
+        }
+        // Notify parent to handle the move
+        onFolderDrop?.(droppedFolderId, folder.id)
+      }
     }
   })
 

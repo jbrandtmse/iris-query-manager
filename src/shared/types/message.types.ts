@@ -27,6 +27,8 @@ export type MessageType =
   | { type: 'DELETE_FOLDER'; payload: { id: string } }
   // Query drag-drop message (Story 4-4)
   | { type: 'MOVE_QUERY'; payload: { queryId: string; targetFolderId: string | null } }
+  // Folder drag-drop message (Story 4-5)
+  | { type: 'MOVE_FOLDER'; payload: { folderId: string; targetParentId: string | null } }
 
 // Re-export Result as MessageResult for backwards compatibility
 export type MessageResult<T> = Result<T>

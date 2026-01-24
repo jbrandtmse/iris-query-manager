@@ -179,6 +179,15 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle MOVE_FOLDER: Move a folder to a different parent (Story 4-5)
+    if (message.type === 'MOVE_FOLDER') {
+      const { folderId, targetParentId } = message.payload
+      storageService.moveFolder(folderId, targetParentId).then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
     // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
     if (message.type === 'PASTE_QUERY') {
       const { sql } = message.payload

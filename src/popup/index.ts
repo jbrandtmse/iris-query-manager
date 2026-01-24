@@ -74,11 +74,13 @@ function initializePopup(): void {
   // onItemActivate: called on click or Enter (triggers paste)
   // onItemContextMenu: called on right-click (Story 3-5)
   // onQueryDrop: called when query is dropped on folder/root (Story 4-4)
+  // onFolderDrop: called when folder is dropped on folder/root (Story 4-5)
   treeViewElement = createTreeView({
     onItemSelect: handleQuerySelectionChange,
     onItemActivate: handleQueryActivate,
     onItemContextMenu: handleQueryContextMenu,
     onQueryDrop: handleQueryDrop,
+    onFolderDrop: handleFolderDrop,
   })
   content.appendChild(treeViewElement)
 
@@ -285,6 +287,7 @@ async function loadQueriesAndFolders(): Promise<void> {
     onItemActivate: handleQueryActivate,
     onItemContextMenu: handleQueryContextMenu,
     onQueryDrop: handleQueryDrop,
+    onFolderDrop: handleFolderDrop,
   })
 }
 
@@ -599,6 +602,43 @@ async function handleQueryDrop(queryId: string, targetFolderId: string | null): 
   // Expand target folder if it was collapsed
   if (targetFolderId && !expandedIds.includes(targetFolderId)) {
     toggleFolder(targetFolderId)
+  }
+}
+
+/**
+ * Handle folder drop on folder or root (Story 4-5)
+ * Moves folder to target parent folder via service worker
+ * @param folderId - The folder being moved
+ * @param targetParentId - Target parent folder ID, or null for root
+ */
+async function handleFolderDrop(folderId: string, targetParentId: string | null): Promise<void> {
+  // Send MOVE_FOLDER to service worker
+  const result = await sendToServiceWorker<Folder>({
+    type: 'MOVE_FOLDER',
+    payload: { folderId, targetParentId },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  // Get parent name for toast message (consistent with query move: "root")
+  const parentName = targetParentId
+    ? currentFolders.find((f) => f.id === targetParentId)?.name ?? 'folder'
+    : 'root'
+
+  // Show success feedback
+  showToast(`Moved folder to: ${parentName}`, 'success')
+
+  // Preserve expanded folders state during refresh
+  const expandedIds = getExpandedFolders()
+  await loadQueriesAndFolders()
+  setExpandedFolders(expandedIds)
+
+  // Expand target parent if it was collapsed
+  if (targetParentId && !expandedIds.includes(targetParentId)) {
+    toggleFolder(targetParentId)
   }
 }
 

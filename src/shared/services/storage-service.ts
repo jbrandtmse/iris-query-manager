@@ -350,3 +350,98 @@ export async function moveQuery(
 
   return { success: true, data: updatedQuery }
 }
+
+/**
+ * Check if a folder is a descendant of another folder
+ * Used to prevent circular references when moving folders (Story 4-5)
+ * @param folderId - The folder to check ancestry of
+ * @param potentialAncestorId - The folder that might be an ancestor
+ * @param folders - All folders for traversal
+ */
+function isDescendantOf(
+  folderId: string,
+  potentialAncestorId: string,
+  folders: Folder[]
+): boolean {
+  let currentId: string | null = folderId
+  const visited = new Set<string>()
+
+  while (currentId !== null) {
+    if (visited.has(currentId)) {
+      // Circular reference in data (shouldn't happen)
+      return false
+    }
+    visited.add(currentId)
+
+    if (currentId === potentialAncestorId) {
+      return true
+    }
+
+    const folder = folders.find((f) => f.id === currentId)
+    currentId = folder?.parentId ?? null
+  }
+
+  return false
+}
+
+/**
+ * Move a folder to a different parent (or to root) (Story 4-5: FR15)
+ * @param folderId - The ID of the folder to move
+ * @param targetParentId - The target parent folder ID, or null to move to root
+ */
+export async function moveFolder(
+  folderId: string,
+  targetParentId: string | null
+): Promise<Result<Folder>> {
+  const foldersResult = await getFolders()
+  if (!foldersResult.success) {
+    return foldersResult
+  }
+
+  const folders = foldersResult.data
+
+  // Find source folder
+  const folderIndex = folders.findIndex((f) => f.id === folderId)
+  if (folderIndex === -1) {
+    return { success: false, error: 'Folder not found' }
+  }
+
+  // Prevent dropping folder onto itself
+  if (folderId === targetParentId) {
+    return { success: false, error: 'Cannot move folder into itself' }
+  }
+
+  // Validate target parent exists (if not moving to root)
+  if (targetParentId !== null) {
+    const parentExists = folders.some((f) => f.id === targetParentId)
+    if (!parentExists) {
+      return { success: false, error: 'Target folder not found' }
+    }
+
+    // CRITICAL: Check for circular reference
+    if (isDescendantOf(targetParentId, folderId, folders)) {
+      return { success: false, error: 'Cannot move folder into its own subfolder' }
+    }
+  }
+
+  // Skip if already at target location
+  if (folders[folderIndex].parentId === targetParentId) {
+    return { success: true, data: folders[folderIndex] }
+  }
+
+  // Update folder
+  const updatedFolder: Folder = {
+    ...folders[folderIndex],
+    parentId: targetParentId,
+  }
+
+  const updatedFolders = [...folders]
+  updatedFolders[folderIndex] = updatedFolder
+
+  const setResult = await setInStorage(STORAGE_KEY_FOLDERS, updatedFolders)
+  if (!setResult.success) {
+    return setResult
+  }
+
+  return { success: true, data: updatedFolder }
+}

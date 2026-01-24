@@ -73,7 +73,7 @@ development_status:
   4-2-implement-create-folder-functionality: done
   4-3-implement-folder-rename-delete: done
   4-4-implement-drag-drop-queries: dev-complete
-  4-5-implement-drag-drop-folders: backlog
+  4-5-implement-drag-drop-folders: done
   epic-4-retrospective: optional
 
   # Epic 5: Import/Export & Team Sharing

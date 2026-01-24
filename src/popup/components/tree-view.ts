@@ -12,6 +12,7 @@ import {
   type TreeItemContextMenuHandler,
   type FolderToggleHandler,
   type QueryDropHandler,
+  type FolderDropHandler,
 } from './tree-item'
 
 interface TreeViewState {
@@ -25,6 +26,7 @@ export interface TreeViewOptions {
   onItemContextMenu?: TreeItemContextMenuHandler // Called on right-click
   onFolderToggle?: FolderToggleHandler // Called when folder expand/collapse is toggled
   onQueryDrop?: QueryDropHandler // Called when query is dropped on folder or root (Story 4-4)
+  onFolderDrop?: FolderDropHandler // Called when folder is dropped on folder or root (Story 4-5)
 }
 
 // Module state
@@ -205,6 +207,9 @@ function renderTree(nodes: TreeNode[], container: HTMLElement, level: number): v
         onToggle: handleFolderToggle,
         onContextMenu: currentOptions.onItemContextMenu,
         onQueryDrop: currentOptions.onQueryDrop,
+        onFolderDrop: currentOptions.onFolderDrop,  // Story 4-5
+        onDragStart: handleDragStart,  // Story 4-5
+        onDragEnd: handleDragEnd,  // Story 4-5
       })
       container.appendChild(folderItem)
 
@@ -318,12 +323,12 @@ export function getSelectedId(): string | null {
 }
 
 /**
- * Create root drop zone element for moving queries to root (Story 4-4)
+ * Create root drop zone element for moving queries/folders to root (Story 4-4, 4-5)
  */
 function createRootDropZone(): HTMLDivElement {
   const rootDropZone = document.createElement('div')
   rootDropZone.className = 'tree-view__root-drop-zone'
-  rootDropZone.textContent = 'Drop here to move to root'
+  rootDropZone.textContent = 'Drop here to move to root level'
   rootDropZone.setAttribute('data-droppable', 'root')
 
   // Track dragenter/dragleave count to handle child element events
@@ -354,18 +359,26 @@ function createRootDropZone(): HTMLDivElement {
     }
   })
 
-  // Drop handler - move query to root
+  // Drop handler - move query or folder to root (Story 4-4, 4-5)
   rootDropZone.addEventListener('drop', (e) => {
     e.preventDefault()
     // Reset counter and remove class on drop
     dragEnterCount = 0
     rootDropZone.classList.remove('tree-view__root-drop-zone--active')
 
+    // Handle query drop (Story 4-4)
     const queryId = e.dataTransfer?.getData('application/x-query-id')
-    // Validate queryId is a non-empty string before acting
     if (queryId && typeof queryId === 'string' && queryId.trim().length > 0) {
-      // Move to root (folderId = null)
+      // Move query to root (folderId = null)
       currentOptions.onQueryDrop?.(queryId, null)
+      return
+    }
+
+    // Handle folder drop (Story 4-5)
+    const folderId = e.dataTransfer?.getData('application/x-folder-id')
+    if (folderId && typeof folderId === 'string' && folderId.trim().length > 0) {
+      // Move folder to root (parentId = null)
+      currentOptions.onFolderDrop?.(folderId, null)
     }
   })
 

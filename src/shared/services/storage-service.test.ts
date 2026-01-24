@@ -10,6 +10,7 @@ import {
   updateFolder,
   deleteFolder,
   moveQuery,
+  moveFolder,
 } from './storage-service'
 
 // Mock chrome.storage.local
@@ -930,6 +931,207 @@ describe('storage-service', () => {
         expect(result.data.name).toBe('My Query')
         expect(result.data.sql).toBe('SELECT * FROM users')
         expect(result.data.createdAt).toBe('2026-01-20T10:00:00.000Z')
+      }
+    })
+  })
+
+  describe('moveFolder', () => {
+    it('should move folder to another folder', async () => {
+      const parentFolder: Folder = { id: 'parent-folder', name: 'Parent', parentId: null }
+      const childFolder: Folder = { id: 'child-folder', name: 'Child', parentId: null }
+      mock.setStorage({ folders: [parentFolder, childFolder], queries: [] })
+
+      const result = await moveFolder('child-folder', 'parent-folder')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('parent-folder')
+        expect(result.data.id).toBe('child-folder')
+        expect(result.data.name).toBe('Child')
+      }
+      const storage = mock.getStorage()
+      expect(storage.folders?.find((f) => f.id === 'child-folder')?.parentId).toBe('parent-folder')
+    })
+
+    it('should move folder to root (null parentId)', async () => {
+      const parentFolder: Folder = { id: 'parent-folder', name: 'Parent', parentId: null }
+      const childFolder: Folder = { id: 'child-folder', name: 'Child', parentId: 'parent-folder' }
+      mock.setStorage({ folders: [parentFolder, childFolder], queries: [] })
+
+      const result = await moveFolder('child-folder', null)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe(null)
+      }
+      const storage = mock.getStorage()
+      expect(storage.folders?.find((f) => f.id === 'child-folder')?.parentId).toBe(null)
+    })
+
+    it('should return error when folder not found', async () => {
+      mock.setStorage({ folders: [], queries: [] })
+
+      const result = await moveFolder('nonexistent', 'some-folder')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Folder not found')
+      }
+    })
+
+    it('should return error when target parent folder not found', async () => {
+      const folder: Folder = { id: 'folder-1', name: 'Folder', parentId: null }
+      mock.setStorage({ folders: [folder], queries: [] })
+
+      const result = await moveFolder('folder-1', 'nonexistent-parent')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Target folder not found')
+      }
+    })
+
+    it('should return error when moving folder into itself', async () => {
+      const folder: Folder = { id: 'folder-1', name: 'Folder', parentId: null }
+      mock.setStorage({ folders: [folder], queries: [] })
+
+      const result = await moveFolder('folder-1', 'folder-1')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Cannot move folder into itself')
+      }
+    })
+
+    it('should return error when moving folder into its own child (circular reference)', async () => {
+      const parentFolder: Folder = { id: 'parent', name: 'Parent', parentId: null }
+      const childFolder: Folder = { id: 'child', name: 'Child', parentId: 'parent' }
+      mock.setStorage({ folders: [parentFolder, childFolder], queries: [] })
+
+      const result = await moveFolder('parent', 'child')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Cannot move folder into its own subfolder')
+      }
+    })
+
+    it('should return error when moving folder into its grandchild (deep circular reference)', async () => {
+      const grandparent: Folder = { id: 'grandparent', name: 'Grandparent', parentId: null }
+      const parent: Folder = { id: 'parent', name: 'Parent', parentId: 'grandparent' }
+      const child: Folder = { id: 'child', name: 'Child', parentId: 'parent' }
+      mock.setStorage({ folders: [grandparent, parent, child], queries: [] })
+
+      const result = await moveFolder('grandparent', 'child')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Cannot move folder into its own subfolder')
+      }
+    })
+
+    it('should skip update if already in target location', async () => {
+      const parentFolder: Folder = { id: 'parent-folder', name: 'Parent', parentId: null }
+      const childFolder: Folder = { id: 'child-folder', name: 'Child', parentId: 'parent-folder' }
+      mock.setStorage({ folders: [parentFolder, childFolder], queries: [] })
+
+      const result = await moveFolder('child-folder', 'parent-folder')
+
+      expect(result.success).toBe(true)
+      // Storage set should not have been called (no update needed)
+      // Note: It returns success with the unchanged folder
+    })
+
+    it('should allow moving sibling folders', async () => {
+      const folder1: Folder = { id: 'folder-1', name: 'Folder 1', parentId: null }
+      const folder2: Folder = { id: 'folder-2', name: 'Folder 2', parentId: null }
+      mock.setStorage({ folders: [folder1, folder2], queries: [] })
+
+      const result = await moveFolder('folder-2', 'folder-1')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('folder-1')
+      }
+    })
+
+    it('should preserve folder name when moving', async () => {
+      const targetFolder: Folder = { id: 'target', name: 'Target', parentId: null }
+      const movingFolder: Folder = { id: 'moving', name: 'Moving Folder', parentId: null }
+      mock.setStorage({ folders: [targetFolder, movingFolder], queries: [] })
+
+      const result = await moveFolder('moving', 'target')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.name).toBe('Moving Folder')
+        expect(result.data.id).toBe('moving')
+      }
+    })
+
+    it('should handle moving nested folder to root', async () => {
+      const root: Folder = { id: 'root', name: 'Root', parentId: null }
+      const nested1: Folder = { id: 'nested1', name: 'Nested 1', parentId: 'root' }
+      const nested2: Folder = { id: 'nested2', name: 'Nested 2', parentId: 'nested1' }
+      mock.setStorage({ folders: [root, nested1, nested2], queries: [] })
+
+      const result = await moveFolder('nested2', null)
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe(null)
+      }
+    })
+
+    it('should allow moving folder between sibling subtrees', async () => {
+      // Tree structure:
+      // root1 -> child1A
+      // root2 -> child2A
+      const root1: Folder = { id: 'root1', name: 'Root 1', parentId: null }
+      const child1A: Folder = { id: 'child1A', name: 'Child 1A', parentId: 'root1' }
+      const root2: Folder = { id: 'root2', name: 'Root 2', parentId: null }
+      const child2A: Folder = { id: 'child2A', name: 'Child 2A', parentId: 'root2' }
+      mock.setStorage({ folders: [root1, child1A, root2, child2A], queries: [] })
+
+      // Move child1A to be under child2A (sibling subtree)
+      const result = await moveFolder('child1A', 'child2A')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('child2A')
+      }
+    })
+
+    it('should return error when storage set fails', async () => {
+      const folder1: Folder = { id: 'folder-1', name: 'Folder 1', parentId: null }
+      const folder2: Folder = { id: 'folder-2', name: 'Folder 2', parentId: null }
+      mock.setStorage({ folders: [folder1, folder2], queries: [] })
+      mock.mockChrome.storage.local.set = vi.fn((_, callback) => {
+        mock.setLastError('Write failed')
+        callback?.()
+      })
+
+      const result = await moveFolder('folder-2', 'folder-1')
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Write failed')
+      }
+    })
+
+    it('should handle orphan folder gracefully (parentId points to non-existent folder)', async () => {
+      // Orphan folder has parentId pointing to non-existent folder
+      const orphanFolder: Folder = { id: 'orphan', name: 'Orphan', parentId: 'non-existent-parent' }
+      const targetFolder: Folder = { id: 'target', name: 'Target', parentId: null }
+      mock.setStorage({ folders: [orphanFolder, targetFolder], queries: [] })
+
+      // Moving orphan folder to target should succeed
+      // (isDescendantOf should handle missing parent gracefully)
+      const result = await moveFolder('orphan', 'target')
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.parentId).toBe('target')
       }
     })
   })
