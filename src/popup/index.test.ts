@@ -22,10 +22,17 @@ vi.mock('../shared/utils/sql-utils', () => ({
   getDangerousSqlWarning: vi.fn(),
 }))
 
+vi.mock('../shared/utils/file-utils', () => ({
+  downloadJsonFile: vi.fn(),
+  generateExportFilename: vi.fn(() => 'query-manager-export-2026-01-24.json'),
+  generateFolderExportFilename: vi.fn((name: string) => `query-manager-${name.toLowerCase()}-2026-01-24.json`),
+}))
+
 // Import mocked functions after vi.mock calls
 import { showToast } from './components/toast'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import { checkSqlSafety } from '../shared/utils/sql-utils'
+import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 import type { Query, Folder } from '../shared/types/storage.types'
 import type { MessageResult } from '../shared/types/message.types'
 
@@ -811,10 +818,12 @@ describe('Story 5-1: handleExportAll flow', () => {
     return count === 1 ? `${count} ${singular}` : `${count} ${plural}`
   }
 
-  // Simplified version of handleExportAll for testing
+  // Version that mirrors real implementation including downloadJsonFile call
   async function handleExportAll(): Promise<void> {
     const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
     const mockedShowToast = vi.mocked(showToast)
+    const mockedDownloadJsonFile = vi.mocked(downloadJsonFile)
+    const mockedGenerateExportFilename = vi.mocked(generateExportFilename)
 
     const result = (await mockedSendToServiceWorker({ type: 'EXPORT_ALL' })) as MessageResult<{
       version: string
@@ -829,7 +838,14 @@ describe('Story 5-1: handleExportAll flow', () => {
     }
 
     const data = result.data
-    // downloadJsonFile would be called here in real implementation
+    const filename = mockedGenerateExportFilename()
+
+    try {
+      mockedDownloadJsonFile(data, filename)
+    } catch {
+      mockedShowToast('Failed to download file', 'error')
+      return
+    }
 
     const queryText = formatCount(data.queries.length, 'query', 'queries')
     const folderText = formatCount(data.folders.length, 'folder', 'folders')
@@ -904,6 +920,43 @@ describe('Story 5-1: handleExportAll flow', () => {
 
       expect(showToast).toHaveBeenCalledWith('Exported 0 queries and 0 folders', 'success')
     })
+
+    it('should call downloadJsonFile with export data and filename', async () => {
+      const exportData = {
+        version: '1.0',
+        exportedAt: '2026-01-23T00:00:00Z',
+        queries: [createMockQuery()],
+        folders: [createMockFolder()],
+      }
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: exportData,
+      })
+
+      await handleExportAll()
+
+      expect(generateExportFilename).toHaveBeenCalled()
+      expect(downloadJsonFile).toHaveBeenCalledWith(exportData, 'query-manager-export-2026-01-24.json')
+    })
+
+    it('should show error toast when downloadJsonFile throws', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-23T00:00:00Z',
+          queries: [],
+          folders: [],
+        },
+      })
+      vi.mocked(downloadJsonFile).mockImplementationOnce(() => {
+        throw new Error('Blob creation failed')
+      })
+
+      await handleExportAll()
+
+      expect(showToast).toHaveBeenCalledWith('Failed to download file', 'error')
+    })
   })
 
   describe('export error handling', () => {
@@ -928,6 +981,197 @@ describe('Story 5-1: handleExportAll flow', () => {
 
       expect(showToast).not.toHaveBeenCalledWith(
         expect.stringContaining('Exported'),
+        'success'
+      )
+    })
+  })
+})
+
+describe('Story 5-2: handleExportFolder flow', () => {
+  // Helper to format plural/singular
+  function formatCount(count: number, singular: string, plural: string): string {
+    return count === 1 ? `${count} ${singular}` : `${count} ${plural}`
+  }
+
+  // Version that mirrors real implementation including downloadJsonFile call
+  async function handleExportFolder(folderId: string, folderName: string): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+    const mockedDownloadJsonFile = vi.mocked(downloadJsonFile)
+    const mockedGenerateFolderExportFilename = vi.mocked(generateFolderExportFilename)
+
+    const result = (await mockedSendToServiceWorker({
+      type: 'EXPORT_FOLDER',
+      payload: { folderId },
+    })) as MessageResult<{
+      version: string
+      exportedAt: string
+      queries: Query[]
+      folders: Folder[]
+    }>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    const data = result.data
+    const filename = mockedGenerateFolderExportFilename(folderName)
+
+    try {
+      mockedDownloadJsonFile(data, filename)
+    } catch {
+      mockedShowToast('Failed to download file', 'error')
+      return
+    }
+
+    const queryText = formatCount(data.queries.length, 'query', 'queries')
+    mockedShowToast(`Exported folder with ${queryText}`, 'success')
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('export folder operation (AC1, AC2)', () => {
+    it('should call EXPORT_FOLDER message with folderId', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-24T00:00:00Z',
+          queries: [],
+          folders: [createMockFolder()],
+        },
+      })
+
+      await handleExportFolder('folder-1', 'My Folder')
+
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'EXPORT_FOLDER',
+        payload: { folderId: 'folder-1' },
+      })
+    })
+
+    it('should show success toast with query count after export', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-24T00:00:00Z',
+          queries: [createMockQuery(), createMockQuery({ id: 'q2' }), createMockQuery({ id: 'q3' })],
+          folders: [createMockFolder()],
+        },
+      })
+
+      await handleExportFolder('folder-1', 'My Folder')
+
+      expect(showToast).toHaveBeenCalledWith('Exported folder with 3 queries', 'success')
+    })
+
+    it('should show singular "query" when count is 1', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-24T00:00:00Z',
+          queries: [createMockQuery()],
+          folders: [createMockFolder()],
+        },
+      })
+
+      await handleExportFolder('folder-1', 'Work Queries')
+
+      expect(showToast).toHaveBeenCalledWith('Exported folder with 1 query', 'success')
+    })
+
+    it('should handle empty folder (no queries)', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-24T00:00:00Z',
+          queries: [],
+          folders: [createMockFolder()],
+        },
+      })
+
+      await handleExportFolder('folder-1', 'Empty Folder')
+
+      expect(showToast).toHaveBeenCalledWith('Exported folder with 0 queries', 'success')
+    })
+
+    it('should call downloadJsonFile with export data and folder filename', async () => {
+      const exportData = {
+        version: '1.0',
+        exportedAt: '2026-01-24T00:00:00Z',
+        queries: [createMockQuery()],
+        folders: [createMockFolder()],
+      }
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: exportData,
+      })
+
+      await handleExportFolder('folder-1', 'Work Queries')
+
+      expect(generateFolderExportFilename).toHaveBeenCalledWith('Work Queries')
+      expect(downloadJsonFile).toHaveBeenCalledWith(exportData, 'query-manager-work queries-2026-01-24.json')
+    })
+
+    it('should show error toast when downloadJsonFile throws', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: {
+          version: '1.0',
+          exportedAt: '2026-01-24T00:00:00Z',
+          queries: [],
+          folders: [createMockFolder()],
+        },
+      })
+      vi.mocked(downloadJsonFile).mockImplementationOnce(() => {
+        throw new Error('Blob creation failed')
+      })
+
+      await handleExportFolder('folder-1', 'Test')
+
+      expect(showToast).toHaveBeenCalledWith('Failed to download file', 'error')
+    })
+  })
+
+  describe('export folder error handling', () => {
+    it('should show error toast when folder not found', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Folder not found',
+      })
+
+      await handleExportFolder('non-existent', 'Missing')
+
+      expect(showToast).toHaveBeenCalledWith('Folder not found', 'error')
+    })
+
+    it('should show error toast when storage read fails', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Storage read error',
+      })
+
+      await handleExportFolder('folder-1', 'Test')
+
+      expect(showToast).toHaveBeenCalledWith('Storage read error', 'error')
+    })
+
+    it('should NOT show success toast when export fails', async () => {
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Export failed',
+      })
+
+      await handleExportFolder('folder-1', 'Test')
+
+      expect(showToast).not.toHaveBeenCalledWith(
+        expect.stringContaining('Exported folder'),
         'success'
       )
     })

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { generateExportFilename, downloadJsonFile } from './file-utils'
+import { generateExportFilename, generateFolderExportFilename, downloadJsonFile } from './file-utils'
 
 describe('file-utils', () => {
   describe('generateExportFilename', () => {
@@ -32,6 +32,73 @@ describe('file-utils', () => {
 
       // Pattern: query-manager-export-YYYY-MM-DD.json
       expect(filename).toMatch(/^query-manager-export-\d{4}-\d{2}-\d{2}\.json$/)
+    })
+  })
+
+  describe('generateFolderExportFilename', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-24T12:00:00.000Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should include folder name in filename with query-manager prefix', () => {
+      const filename = generateFolderExportFilename('My Queries')
+
+      expect(filename).toContain('my-queries')
+      expect(filename).toMatch(/^query-manager-/)
+    })
+
+    it('should include date in YYYY-MM-DD format', () => {
+      const filename = generateFolderExportFilename('Test')
+
+      expect(filename).toBe('query-manager-test-2026-01-24.json')
+    })
+
+    it('should sanitize special characters from folder name', () => {
+      const filename = generateFolderExportFilename('Dev/Test:Folder<>"*?|')
+
+      // All forbidden characters should be removed
+      expect(filename).not.toMatch(/[<>:"/\\|?*]/)
+      expect(filename).toBe('query-manager-devtestfolder-2026-01-24.json')
+    })
+
+    it('should replace spaces with hyphens', () => {
+      const filename = generateFolderExportFilename('My Special Folder')
+
+      expect(filename).toBe('query-manager-my-special-folder-2026-01-24.json')
+    })
+
+    it('should handle empty folder name', () => {
+      const filename = generateFolderExportFilename('')
+
+      // Should fall back to generic name
+      expect(filename).toBe('query-manager-folder-2026-01-24.json')
+    })
+
+    it('should handle folder name with only special characters', () => {
+      const filename = generateFolderExportFilename('***///???')
+
+      // Should fall back to generic name when all chars are stripped
+      expect(filename).toBe('query-manager-folder-2026-01-24.json')
+    })
+
+    it('should limit filename length', () => {
+      const longName = 'a'.repeat(100)
+      const filename = generateFolderExportFilename(longName)
+
+      // Should truncate but still be valid
+      expect(filename.length).toBeLessThan(100)
+      expect(filename).toMatch(/^query-manager-a+-\d{4}-\d{2}-\d{2}\.json$/)
+    })
+
+    it('should collapse multiple hyphens into one', () => {
+      const filename = generateFolderExportFilename('Test   Multiple   Spaces')
+
+      expect(filename).toBe('query-manager-test-multiple-spaces-2026-01-24.json')
     })
   })
 

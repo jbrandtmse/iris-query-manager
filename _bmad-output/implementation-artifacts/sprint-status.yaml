@@ -79,7 +79,7 @@ development_status:
   # Epic 5: Import/Export & Team Sharing
   epic-5: in-progress
   5-1-implement-export-all-functionality: done
-  5-2-implement-export-selected-folder: backlog
+  5-2-implement-export-selected-folder: done
   5-3-implement-import-file-selection-validation: backlog
   5-4-implement-import-merge-option: backlog
   5-5-implement-import-replace-option: backlog

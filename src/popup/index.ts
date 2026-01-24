@@ -23,7 +23,7 @@ import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
 import type { ExportData } from '../shared/services/import-export-service'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
-import { downloadJsonFile, generateExportFilename } from '../shared/utils/file-utils'
+import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 
 // Module-level references for component access
 let captureFormElement: HTMLDivElement | null = null
@@ -232,6 +232,36 @@ async function handleExportAll(): Promise<void> {
 }
 
 /**
+ * Handle exporting a specific folder and its contents (Story 5-2 FR17)
+ * Sends EXPORT_FOLDER message to service worker, triggers JSON file download,
+ * and displays success/error toast feedback.
+ */
+async function handleExportFolder(folderId: string, folderName: string): Promise<void> {
+  const result = await sendToServiceWorker<ExportData>({
+    type: 'EXPORT_FOLDER',
+    payload: { folderId },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  const data = result.data
+  const filename = generateFolderExportFilename(folderName)
+
+  try {
+    downloadJsonFile(data, filename)
+  } catch (err) {
+    showToast('Failed to download file', 'error')
+    return
+  }
+
+  const queryText = formatCount(data.queries.length, 'query', 'queries')
+  showToast(`Exported folder with ${queryText}`, 'success')
+}
+
+/**
  * Handle New Folder button click - show folder form for root folder (Story 4-2 AC1)
  */
 function handleNewFolderClick(): void {
@@ -417,18 +447,21 @@ function handleQueryContextMenu(itemId: string, x: number, y: number): void {
   hideContextMenu()
 
   if (folder) {
-    // Folder context menu (Story 4-2 AC3)
+    // Folder context menu (Story 4-2 AC3, Story 5-2)
     showContextMenu({
       x,
       y,
       items: [
         { label: 'New Subfolder', action: 'new-subfolder' },
+        { label: 'Export', action: 'export' },
         { label: 'Rename', action: 'rename' },
         { label: 'Delete', action: 'delete', danger: true },
       ],
       onSelect: (action) => {
         if (action === 'new-subfolder') {
           openFolderForm(folder.id)
+        } else if (action === 'export') {
+          handleExportFolder(folder.id, folder.name)
         } else if (action === 'rename') {
           handleRenameFolder(folder)
         } else if (action === 'delete') {

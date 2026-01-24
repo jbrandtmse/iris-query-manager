@@ -15,6 +15,36 @@ export function generateExportFilename(): string {
 }
 
 /**
+ * Sanitize folder name for use in filename
+ * Removes/replaces characters that could cause file system issues
+ */
+function sanitizeFolderName(name: string): string {
+  const sanitized = name
+    .toLowerCase()
+    .replace(/[<>:"/\\|?*]/g, '') // Remove forbidden file chars
+    .replace(/\s+/g, '-')          // Spaces to hyphens
+    .replace(/-+/g, '-')           // Collapse multiple hyphens
+    .replace(/^-|-$/g, '')         // Trim leading/trailing hyphens
+    .substring(0, 50)              // Limit length
+
+  // Fall back to 'folder' if nothing remains after sanitization
+  return sanitized || 'folder'
+}
+
+/**
+ * Generate export filename for a specific folder (AC3)
+ * Format: query-manager-{folder-name}-YYYY-MM-DD.json
+ *
+ * @param folderName - The folder name to include in filename
+ * @returns Formatted filename string
+ */
+export function generateFolderExportFilename(folderName: string): string {
+  const sanitized = sanitizeFolderName(folderName)
+  const date = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  return `query-manager-${sanitized}-${date}.json`
+}
+
+/**
  * Trigger browser download of JSON data as file
  * Uses Blob API and temporary anchor element
  *

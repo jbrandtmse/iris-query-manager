@@ -3,7 +3,7 @@ import { isSmpUrl } from '../shared/utils/url-utils'
 import { setActiveState, setInactiveState } from './icon-state'
 import { sendToContentScript } from '../shared/services/message-service'
 import * as storageService from '../shared/services/storage-service'
-import { exportAll } from '../shared/services/import-export-service'
+import { exportAll, exportFolder } from '../shared/services/import-export-service'
 
 console.log('[IRIS Query Manager] Service worker initialized')
 
@@ -192,6 +192,15 @@ chrome.runtime.onMessage.addListener(
     // Handle EXPORT_ALL: Export all queries and folders (Story 5-1)
     if (message.type === 'EXPORT_ALL') {
       exportAll().then((result) => {
+        sendResponse(result)
+      })
+      return true // Async response
+    }
+
+    // Handle EXPORT_FOLDER: Export a specific folder and its contents (Story 5-2)
+    if (message.type === 'EXPORT_FOLDER') {
+      const { folderId } = message.payload
+      exportFolder(folderId).then((result) => {
         sendResponse(result)
       })
       return true // Async response
