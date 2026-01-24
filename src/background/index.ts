@@ -3,7 +3,8 @@ import { isSmpUrl } from '../shared/utils/url-utils'
 import { setActiveState, setInactiveState } from './icon-state'
 import { sendToContentScript } from '../shared/services/message-service'
 import * as storageService from '../shared/services/storage-service'
-import { exportAll, exportFolder } from '../shared/services/import-export-service'
+import { exportAll, exportFolder, mergeImportData } from '../shared/services/import-export-service'
+import type { MergeStats } from '../shared/services/import-export-service'
 
 console.log('[IRIS Query Manager] Service worker initialized')
 
@@ -206,6 +207,13 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle IMPORT_MERGE: Merge imported data with existing library (Story 5-4)
+    if (message.type === 'IMPORT_MERGE') {
+      const { importData } = message.payload
+      handleImportMerge(importData, sendResponse)
+      return true // Async response
+    }
+
     // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
     if (message.type === 'PASTE_QUERY') {
       const { sql } = message.payload
@@ -369,4 +377,45 @@ async function handlePasteQuery(
   }
 
   sendResponse(result)
+}
+
+/**
+ * Handle IMPORT_MERGE message: Merge imported data with existing library (Story 5-4)
+ */
+async function handleImportMerge(
+  importData: Parameters<typeof mergeImportData>[1],
+  sendResponse: (response: MessageResult<MergeStats>) => void
+): Promise<void> {
+  // Get current data from storage
+  const [foldersResult, queriesResult] = await Promise.all([
+    storageService.getFolders(),
+    storageService.getQueries(),
+  ])
+
+  if (!foldersResult.success) {
+    sendResponse({ success: false, error: 'Failed to read current folders' })
+    return
+  }
+  if (!queriesResult.success) {
+    sendResponse({ success: false, error: 'Failed to read current queries' })
+    return
+  }
+
+  const existing = {
+    folders: foldersResult.data,
+    queries: queriesResult.data,
+  }
+
+  // Merge data
+  const { folders, queries, stats } = mergeImportData(existing, importData)
+
+  // Save merged data atomically
+  const saveResult = await storageService.replaceAll({ folders, queries })
+
+  if (!saveResult.success) {
+    sendResponse({ success: false, error: 'Failed to save merged data' })
+    return
+  }
+
+  sendResponse({ success: true, data: stats })
 }

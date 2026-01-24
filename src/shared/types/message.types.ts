@@ -5,6 +5,7 @@
 
 import type { Result } from './result.types'
 import type { Query, Folder } from './storage.types'
+import type { ExportData } from '../services/import-export-service'
 
 // Message type discriminated union
 export type MessageType =
@@ -32,6 +33,8 @@ export type MessageType =
   // Export messages (Story 5-1, 5-2)
   | { type: 'EXPORT_ALL' }
   | { type: 'EXPORT_FOLDER'; payload: { folderId: string } }
+  // Import messages (Story 5-4)
+  | { type: 'IMPORT_MERGE'; payload: { importData: ExportData } }
 
 // Re-export Result as MessageResult for backwards compatibility
 export type MessageResult<T> = Result<T>

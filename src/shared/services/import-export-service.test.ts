@@ -6,7 +6,9 @@ import {
   getDescendantFolderIds,
   validateImportData,
   getImportPreview,
+  mergeImportData,
   type ExportData,
+  type MergeStats,
 } from './import-export-service'
 
 // Mock chrome.storage.local
@@ -1029,6 +1031,584 @@ describe('import-export-service', () => {
 
       expect(preview.rootQueryCount).toBe(2)
       expect(preview.queryCount).toBe(2)
+    })
+  })
+
+  describe('mergeImportData', () => {
+    const createEmptyExisting = (): StorageSchema => ({
+      folders: [],
+      queries: [],
+    })
+
+    const createEmptyImport = (): ExportData => ({
+      version: '1.0',
+      exportedAt: '2026-01-20T10:00:00.000Z',
+      folders: [],
+      queries: [],
+    })
+
+    it('should add new folders correctly', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [
+          { id: 'folder-1', name: 'Work', parentId: null },
+          { id: 'folder-2', name: 'Personal', parentId: null },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders).toHaveLength(2)
+      expect(result.folders.map((f) => f.name)).toContain('Work')
+      expect(result.folders.map((f) => f.name)).toContain('Personal')
+      expect(result.stats.foldersAdded).toBe(2)
+      expect(result.stats.foldersSkipped).toBe(0)
+    })
+
+    it('should add new queries correctly', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.queries).toHaveLength(1)
+      expect(result.queries[0].name).toBe('Q1')
+      expect(result.queries[0].sql).toBe('SELECT 1')
+      expect(result.stats.queriesAdded).toBe(1)
+    })
+
+    it('should map duplicate folder names to existing folder', () => {
+      const existing: StorageSchema = {
+        folders: [{ id: 'existing-1', name: 'Work', parentId: null }],
+        queries: [],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [{ id: 'import-1', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'import-1',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // Only 1 folder (the existing one)
+      expect(result.folders).toHaveLength(1)
+      expect(result.folders[0].id).toBe('existing-1')
+      // Query should be mapped to existing folder
+      expect(result.queries).toHaveLength(1)
+      expect(result.queries[0].folderId).toBe('existing-1')
+      expect(result.stats.foldersSkipped).toBe(1)
+      expect(result.stats.foldersAdded).toBe(0)
+    })
+
+    it('should rename duplicate query names with "(imported)" suffix', () => {
+      const existing: StorageSchema = {
+        folders: [],
+        queries: [
+          {
+            id: 'existing-query',
+            name: 'My Query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'import-query',
+            name: 'My Query',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.queries).toHaveLength(2)
+      expect(result.queries[0].name).toBe('My Query')
+      expect(result.queries[1].name).toBe('My Query (imported)')
+      expect(result.stats.queriesRenamed).toBe(1)
+    })
+
+    it('should handle nested folder mapping correctly', () => {
+      const existing: StorageSchema = {
+        folders: [{ id: 'existing-work', name: 'Work', parentId: null }],
+        queries: [],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [
+          { id: 'import-work', name: 'Work', parentId: null },
+          { id: 'import-sub', name: 'Subwork', parentId: 'import-work' },
+        ],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'import-sub',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // Work folder should be mapped to existing, Subwork should be new
+      expect(result.folders).toHaveLength(2)
+      const workFolder = result.folders.find((f) => f.name === 'Work')
+      const subworkFolder = result.folders.find((f) => f.name === 'Subwork')
+
+      expect(workFolder?.id).toBe('existing-work')
+      expect(subworkFolder?.parentId).toBe('existing-work')
+
+      // Query should point to new subwork folder
+      expect(result.queries[0].folderId).toBe(subworkFolder?.id)
+    })
+
+    it('should preserve createdAt from imported queries', () => {
+      const existing = createEmptyExisting()
+      const originalCreatedAt = '2020-01-01T00:00:00.000Z'
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: originalCreatedAt,
+            updatedAt: '2020-01-01T00:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.queries[0].createdAt).toBe(originalCreatedAt)
+    })
+
+    it('should update updatedAt to current time', () => {
+      const existing = createEmptyExisting()
+      const originalUpdatedAt = '2020-01-01T00:00:00.000Z'
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: originalUpdatedAt,
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // updatedAt should be more recent than original
+      expect(new Date(result.queries[0].updatedAt).getTime()).toBeGreaterThan(
+        new Date(originalUpdatedAt).getTime()
+      )
+    })
+
+    it('should return correct stats', () => {
+      const existing: StorageSchema = {
+        folders: [{ id: 'existing-work', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'existing-query',
+            name: 'Duplicate',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [
+          { id: 'import-work', name: 'Work', parentId: null }, // Will be skipped
+          { id: 'import-new', name: 'New Folder', parentId: null }, // Will be added
+        ],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Duplicate',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'New Query',
+            sql: 'SELECT 3',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.stats.foldersAdded).toBe(1)
+      expect(result.stats.foldersSkipped).toBe(1)
+      expect(result.stats.queriesAdded).toBe(2)
+      expect(result.stats.queriesRenamed).toBe(1)
+    })
+
+    it('should handle empty import', () => {
+      const existing: StorageSchema = {
+        folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported = createEmptyImport()
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders).toHaveLength(1)
+      expect(result.queries).toHaveLength(1)
+      expect(result.stats.foldersAdded).toBe(0)
+      expect(result.stats.queriesAdded).toBe(0)
+    })
+
+    it('should handle empty existing library', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'folder-1',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders).toHaveLength(1)
+      expect(result.queries).toHaveLength(1)
+      expect(result.stats.foldersAdded).toBe(1)
+      expect(result.stats.queriesAdded).toBe(1)
+    })
+
+    it('should generate new IDs for imported items', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [{ id: 'original-folder-id', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'original-query-id',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'original-folder-id',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders[0].id).not.toBe('original-folder-id')
+      expect(result.queries[0].id).not.toBe('original-query-id')
+      // Query should reference the new folder ID
+      expect(result.queries[0].folderId).toBe(result.folders[0].id)
+    })
+
+    it('should handle case-insensitive folder name matching', () => {
+      const existing: StorageSchema = {
+        folders: [{ id: 'existing-work', name: 'Work', parentId: null }],
+        queries: [],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [{ id: 'import-work', name: 'WORK', parentId: null }],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders).toHaveLength(1)
+      expect(result.stats.foldersSkipped).toBe(1)
+    })
+
+    it('should handle case-insensitive query name matching', () => {
+      const existing: StorageSchema = {
+        folders: [],
+        queries: [
+          {
+            id: 'existing-query',
+            name: 'my query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'import-query',
+            name: 'MY QUERY',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.queries[1].name).toBe('MY QUERY (imported)')
+      expect(result.stats.queriesRenamed).toBe(1)
+    })
+
+    it('should handle queries with orphaned folderId', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'non-existent-folder', // Not in import folders
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // Query should be placed at root
+      expect(result.queries[0].folderId).toBeNull()
+    })
+
+    it('should handle multiple imported queries with same name', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Duplicate Name',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'Duplicate Name',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // First query keeps original name, second gets "(imported)" suffix
+      expect(result.queries[0].name).toBe('Duplicate Name')
+      expect(result.queries[1].name).toBe('Duplicate Name (imported)')
+      expect(result.stats.queriesRenamed).toBe(1)
+    })
+
+    it('should handle multiple collisions with incremented suffix', () => {
+      // Existing has both "My Query" and "My Query (imported)"
+      const existing: StorageSchema = {
+        folders: [],
+        queries: [
+          {
+            id: 'existing-1',
+            name: 'My Query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'existing-2',
+            name: 'My Query (imported)',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'import-1',
+            name: 'My Query',
+            sql: 'SELECT 3',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // Should get "(imported 2)" since "(imported)" is taken
+      expect(result.queries).toHaveLength(3)
+      expect(result.queries[2].name).toBe('My Query (imported 2)')
+      expect(result.stats.queriesRenamed).toBe(1)
+    })
+
+    it('should handle three imported queries with same name all colliding', () => {
+      const existing: StorageSchema = {
+        folders: [],
+        queries: [
+          {
+            id: 'existing-1',
+            name: 'Dupe',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        queries: [
+          {
+            id: 'import-1',
+            name: 'Dupe',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'import-2',
+            name: 'Dupe',
+            sql: 'SELECT 3',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'import-3',
+            name: 'Dupe',
+            sql: 'SELECT 4',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      // All 4 queries should have unique names
+      expect(result.queries).toHaveLength(4)
+      const names = result.queries.map((q) => q.name)
+      expect(names).toContain('Dupe')
+      expect(names).toContain('Dupe (imported)')
+      expect(names).toContain('Dupe (imported 2)')
+      expect(names).toContain('Dupe (imported 3)')
+      expect(result.stats.queriesRenamed).toBe(3)
+    })
+
+    it('should handle deeply nested folder structure', () => {
+      const existing = createEmptyExisting()
+      const imported: ExportData = {
+        ...createEmptyImport(),
+        folders: [
+          { id: 'level-1', name: 'Level 1', parentId: null },
+          { id: 'level-2', name: 'Level 2', parentId: 'level-1' },
+          { id: 'level-3', name: 'Level 3', parentId: 'level-2' },
+          { id: 'level-4', name: 'Level 4', parentId: 'level-3' },
+        ],
+        queries: [
+          {
+            id: 'deep-query',
+            name: 'Deep Query',
+            sql: 'SELECT 1',
+            folderId: 'level-4',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = mergeImportData(existing, imported)
+
+      expect(result.folders).toHaveLength(4)
+      expect(result.stats.foldersAdded).toBe(4)
+
+      // Verify folder hierarchy is preserved
+      const level1 = result.folders.find((f) => f.name === 'Level 1')
+      const level2 = result.folders.find((f) => f.name === 'Level 2')
+      const level3 = result.folders.find((f) => f.name === 'Level 3')
+      const level4 = result.folders.find((f) => f.name === 'Level 4')
+
+      expect(level1?.parentId).toBeNull()
+      expect(level2?.parentId).toBe(level1?.id)
+      expect(level3?.parentId).toBe(level2?.id)
+      expect(level4?.parentId).toBe(level3?.id)
+
+      // Query should point to level 4
+      expect(result.queries[0].folderId).toBe(level4?.id)
     })
   })
 })

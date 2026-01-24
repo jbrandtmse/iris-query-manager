@@ -21,7 +21,7 @@ import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
-import type { ExportData, ImportPreview as ImportPreviewData } from '../shared/services/import-export-service'
+import type { ExportData, ImportPreview as ImportPreviewData, MergeStats } from '../shared/services/import-export-service'
 import { parseImportFile, getImportPreview } from '../shared/services/import-export-service'
 import { renderImportPreview } from './components/import-preview'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
@@ -783,6 +783,53 @@ async function handleImportFile(file: File): Promise<void> {
 }
 
 /**
+ * Handle merge action - merge imported data with existing library (Story 5-4)
+ * Sends IMPORT_MERGE message to service worker and shows result toast
+ */
+async function handleMerge(): Promise<void> {
+  if (!pendingImportData) return
+
+  // Find and disable merge button to show loading state
+  const mergeBtn = document.querySelector('.js-merge') as HTMLButtonElement | null
+  let originalText = 'Merge'
+  if (mergeBtn) {
+    originalText = mergeBtn.textContent ?? 'Merge'
+    mergeBtn.disabled = true
+    mergeBtn.textContent = 'Merging...'
+  }
+
+  const result = await sendToServiceWorker<MergeStats>({
+    type: 'IMPORT_MERGE',
+    payload: { importData: pendingImportData },
+  })
+
+  if (result.success) {
+    hideImportPreviewOverlay()
+    pendingImportData = null
+
+    // Build toast message with stats (Task 5)
+    const stats = result.data
+    const folderText = formatCount(stats.foldersAdded, 'folder', 'folders')
+    const queryText = formatCount(stats.queriesAdded, 'query', 'queries')
+    let message = `Imported ${folderText} and ${queryText}`
+    if (stats.queriesRenamed > 0) {
+      message += ` (${stats.queriesRenamed} renamed to avoid duplicates)`
+    }
+    showToast(message, 'success')
+
+    // Refresh tree view with new data
+    await loadQueriesAndFolders()
+  } else {
+    showToast(result.error ?? 'Merge failed', 'error')
+    // Re-enable button on error
+    if (mergeBtn) {
+      mergeBtn.disabled = false
+      mergeBtn.textContent = originalText
+    }
+  }
+}
+
+/**
  * Show import preview overlay (AC4)
  * Creates modal-like overlay with preview and action buttons
  */
@@ -795,11 +842,7 @@ function showImportPreviewOverlay(preview: ImportPreviewData): void {
   overlay.appendChild(previewContainer)
 
   renderImportPreview(previewContainer, preview, {
-    onMerge: () => {
-      // Will be implemented in Story 5-4
-      hideImportPreviewOverlay()
-      showToast('Merge not yet implemented', 'info')
-    },
+    onMerge: handleMerge,
     onReplace: () => {
       // Will be implemented in Story 5-5
       hideImportPreviewOverlay()

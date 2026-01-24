@@ -11,6 +11,7 @@ import {
   deleteFolder,
   moveQuery,
   moveFolder,
+  replaceAll,
 } from './storage-service'
 
 // Mock chrome.storage.local
@@ -1133,6 +1134,122 @@ describe('storage-service', () => {
       if (result.success) {
         expect(result.data.parentId).toBe('target')
       }
+    })
+  })
+
+  describe('replaceAll', () => {
+    it('should replace all folders and queries atomically', async () => {
+      // Existing data
+      mock.setStorage({
+        folders: [{ id: 'old-folder', name: 'Old', parentId: null }],
+        queries: [
+          {
+            id: 'old-query',
+            name: 'Old Query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      })
+
+      // New data
+      const newData: StorageSchema = {
+        folders: [
+          { id: 'new-folder-1', name: 'New 1', parentId: null },
+          { id: 'new-folder-2', name: 'New 2', parentId: 'new-folder-1' },
+        ],
+        queries: [
+          {
+            id: 'new-query-1',
+            name: 'New Query 1',
+            sql: 'SELECT 2',
+            folderId: 'new-folder-1',
+            createdAt: '2026-01-21T10:00:00.000Z',
+            updatedAt: '2026-01-21T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = await replaceAll(newData)
+
+      expect(result.success).toBe(true)
+      const storage = mock.getStorage()
+      expect(storage.folders).toEqual(newData.folders)
+      expect(storage.queries).toEqual(newData.queries)
+    })
+
+    it('should handle empty data replacement', async () => {
+      mock.setStorage({
+        folders: [{ id: 'old-folder', name: 'Old', parentId: null }],
+        queries: [
+          {
+            id: 'old-query',
+            name: 'Old Query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      })
+
+      const result = await replaceAll({ folders: [], queries: [] })
+
+      expect(result.success).toBe(true)
+      const storage = mock.getStorage()
+      expect(storage.folders).toEqual([])
+      expect(storage.queries).toEqual([])
+    })
+
+    it('should return error when storage set fails', async () => {
+      mock.setStorage({ folders: [], queries: [] })
+      mock.mockChrome.storage.local.set = vi.fn((_, callback) => {
+        mock.setLastError('Write failed')
+        callback?.()
+      })
+
+      const result = await replaceAll({
+        folders: [{ id: 'folder-1', name: 'Test', parentId: null }],
+        queries: [],
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error).toBe('Write failed')
+      }
+    })
+
+    it('should set both folders and queries in single operation', async () => {
+      mock.setStorage({ folders: [], queries: [] })
+      const setSpy = vi.spyOn(mock.mockChrome.storage.local, 'set')
+
+      const newData: StorageSchema = {
+        folders: [{ id: 'folder-1', name: 'Folder', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Query',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      await replaceAll(newData)
+
+      // Should be called once with both folders and queries
+      expect(setSpy).toHaveBeenCalledTimes(1)
+      expect(setSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folders: newData.folders,
+          queries: newData.queries,
+        }),
+        expect.any(Function)
+      )
     })
   })
 })

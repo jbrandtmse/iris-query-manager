@@ -5,7 +5,7 @@
  */
 
 import type { Result } from '../types/result.types'
-import type { Query, Folder } from '../types/storage.types'
+import type { Query, Folder, StorageSchema } from '../types/storage.types'
 import { getQueries, getFolders } from './storage-service'
 
 /**
@@ -284,5 +284,176 @@ export function getImportPreview(data: ExportData): ImportPreview {
     queryCount: data.queries.length,
     folderNames,
     rootQueryCount,
+  }
+}
+
+/**
+ * Merge statistics returned after import merge operation (FR19)
+ */
+export interface MergeStats {
+  foldersAdded: number
+  foldersSkipped: number  // Folders that matched existing (merged content instead)
+  queriesAdded: number
+  queriesRenamed: number  // Queries that needed "(imported)" suffix
+}
+
+/**
+ * Result of merge operation including merged data and statistics
+ */
+export interface MergeResult {
+  folders: Folder[]
+  queries: Query[]
+  stats: MergeStats
+}
+
+/**
+ * Group items by a key function
+ * Helper for level-by-level folder processing
+ */
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>()
+  for (const item of items) {
+    const key = keyFn(item)
+    const arr = map.get(key) ?? []
+    arr.push(item)
+    map.set(key, arr)
+  }
+  return map
+}
+
+/**
+ * Merge imported data with existing library (FR19)
+ *
+ * Strategy:
+ * - Folders with same name at same level → merge contents into existing
+ * - Queries with same name in same folder → rename imported with "(imported)" suffix
+ * - All imported items get new IDs to prevent conflicts
+ * - References (parentId, folderId) are remapped to new IDs
+ *
+ * @param existing - Current library from storage
+ * @param imported - Validated data from import file
+ * @returns Merged data ready to save, plus stats for user feedback
+ */
+export function mergeImportData(
+  existing: StorageSchema,
+  imported: ExportData
+): MergeResult {
+  const stats: MergeStats = {
+    foldersAdded: 0,
+    foldersSkipped: 0,
+    queriesAdded: 0,
+    queriesRenamed: 0,
+  }
+
+  // Start with copies of existing data
+  const mergedFolders = [...existing.folders]
+  const mergedQueries = [...existing.queries]
+
+  // Map imported IDs to new/existing IDs
+  const folderIdMap: Map<string, string> = new Map()
+
+  // Build lookup for existing folder names at each level
+  // Key: `${parentId ?? 'root'}:${name.toLowerCase()}` → Folder
+  const existingFolderByKey = new Map<string, Folder>()
+  for (const folder of existing.folders) {
+    const key = `${folder.parentId ?? 'root'}:${folder.name.toLowerCase()}`
+    existingFolderByKey.set(key, folder)
+  }
+
+  // Process folders level by level (root first, then children)
+  // This ensures parent folder IDs are mapped before processing children
+  const importedFoldersByParent = groupBy(imported.folders, (f) => f.parentId ?? 'root')
+
+  function processFolderLevel(parentKey: string, newParentId: string | null): void {
+    const foldersAtLevel = importedFoldersByParent.get(parentKey) ?? []
+
+    for (const importedFolder of foldersAtLevel) {
+      const lookupKey = `${newParentId ?? 'root'}:${importedFolder.name.toLowerCase()}`
+      const existingFolder = existingFolderByKey.get(lookupKey)
+
+      if (existingFolder) {
+        // Folder with same name exists at this level → map to existing, don't create new
+        folderIdMap.set(importedFolder.id, existingFolder.id)
+        stats.foldersSkipped++
+      } else {
+        // New folder → generate new ID and add
+        const newId = crypto.randomUUID()
+        folderIdMap.set(importedFolder.id, newId)
+
+        const newFolder: Folder = {
+          id: newId,
+          name: importedFolder.name,
+          parentId: newParentId,
+        }
+        mergedFolders.push(newFolder)
+
+        // Add to lookup so nested imported folders with same name can find it
+        existingFolderByKey.set(lookupKey, newFolder)
+        stats.foldersAdded++
+      }
+
+      // Process children of this folder
+      processFolderLevel(importedFolder.id, folderIdMap.get(importedFolder.id)!)
+    }
+  }
+
+  // Start with root-level folders
+  processFolderLevel('root', null)
+
+  // Build lookup for existing query names in each folder
+  // Key: `${folderId ?? 'root'}:${name.toLowerCase()}` → exists
+  const existingQueryNames = new Set<string>()
+  for (const query of existing.queries) {
+    const key = `${query.folderId ?? 'root'}:${query.name.toLowerCase()}`
+    existingQueryNames.add(key)
+  }
+
+  // Also track names we're adding during this merge to handle multiple imported queries with same name
+  const addedQueryNames = new Set<string>()
+
+  // Process queries
+  const now = new Date().toISOString()
+  for (const importedQuery of imported.queries) {
+    // Map folderId to new/existing folder ID
+    const newFolderId = importedQuery.folderId
+      ? folderIdMap.get(importedQuery.folderId) ?? null
+      : null
+
+    // Check for name collision
+    let queryName = importedQuery.name
+    const lookupKey = `${newFolderId ?? 'root'}:${queryName.toLowerCase()}`
+
+    if (existingQueryNames.has(lookupKey) || addedQueryNames.has(lookupKey)) {
+      // Generate unique suffix if "(imported)" also collides
+      let suffix = ' (imported)'
+      let renamedKey = `${newFolderId ?? 'root'}:${(queryName + suffix).toLowerCase()}`
+      let counter = 2
+      while (existingQueryNames.has(renamedKey) || addedQueryNames.has(renamedKey)) {
+        suffix = ` (imported ${counter})`
+        renamedKey = `${newFolderId ?? 'root'}:${(queryName + suffix).toLowerCase()}`
+        counter++
+      }
+      queryName = `${queryName}${suffix}`
+      stats.queriesRenamed++
+    }
+
+    const newQuery: Query = {
+      id: crypto.randomUUID(),
+      name: queryName,
+      sql: importedQuery.sql,
+      folderId: newFolderId,
+      createdAt: importedQuery.createdAt,  // Preserve original creation time
+      updatedAt: now,  // Mark as updated now (import is a modification)
+    }
+
+    mergedQueries.push(newQuery)
+    addedQueryNames.add(`${newFolderId ?? 'root'}:${queryName.toLowerCase()}`)
+    stats.queriesAdded++
+  }
+
+  return {
+    folders: mergedFolders,
+    queries: mergedQueries,
+    stats,
   }
 }

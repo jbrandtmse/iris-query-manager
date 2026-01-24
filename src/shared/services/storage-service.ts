@@ -4,7 +4,7 @@
  */
 
 import type { Result } from '../types/result.types'
-import type { Query, Folder, SaveQueryInput, CreateFolderInput } from '../types/storage.types'
+import type { Query, Folder, SaveQueryInput, CreateFolderInput, StorageSchema } from '../types/storage.types'
 
 const STORAGE_KEY_QUERIES = 'queries'
 const STORAGE_KEY_FOLDERS = 'folders'
@@ -444,4 +444,30 @@ export async function moveFolder(
   }
 
   return { success: true, data: updatedFolder }
+}
+
+/**
+ * Atomically replace entire storage with new data (Story 5-4, 5-5)
+ * Used for import operations (merge and replace)
+ * @param data - The complete StorageSchema to replace current data with
+ */
+export async function replaceAll(data: StorageSchema): Promise<Result<void>> {
+  return new Promise((resolve) => {
+    chrome.storage.local.set(
+      {
+        [STORAGE_KEY_FOLDERS]: data.folders,
+        [STORAGE_KEY_QUERIES]: data.queries,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          resolve({
+            success: false,
+            error: chrome.runtime.lastError.message ?? 'Failed to save data',
+          })
+        } else {
+          resolve({ success: true, data: undefined })
+        }
+      }
+    )
+  })
 }
