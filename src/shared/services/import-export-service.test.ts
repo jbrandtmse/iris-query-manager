@@ -7,8 +7,10 @@ import {
   validateImportData,
   getImportPreview,
   mergeImportData,
+  replaceWithImportData,
   type ExportData,
   type MergeStats,
+  type ReplaceStats,
 } from './import-export-service'
 
 // Mock chrome.storage.local
@@ -62,6 +64,14 @@ describe('import-export-service', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.resetAllMocks()
+  })
+
+  // Shared test helper for creating empty import data
+  const createEmptyImportData = (): ExportData => ({
+    version: '1.0',
+    exportedAt: '2026-01-20T10:00:00.000Z',
+    folders: [],
+    queries: [],
   })
 
   describe('exportAll', () => {
@@ -1040,17 +1050,10 @@ describe('import-export-service', () => {
       queries: [],
     })
 
-    const createEmptyImport = (): ExportData => ({
-      version: '1.0',
-      exportedAt: '2026-01-20T10:00:00.000Z',
-      folders: [],
-      queries: [],
-    })
-
     it('should add new folders correctly', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [
           { id: 'folder-1', name: 'Work', parentId: null },
           { id: 'folder-2', name: 'Personal', parentId: null },
@@ -1069,7 +1072,7 @@ describe('import-export-service', () => {
     it('should add new queries correctly', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'query-1',
@@ -1096,7 +1099,7 @@ describe('import-export-service', () => {
         queries: [],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [{ id: 'import-1', name: 'Work', parentId: null }],
         queries: [
           {
@@ -1137,7 +1140,7 @@ describe('import-export-service', () => {
         ],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'import-query',
@@ -1164,7 +1167,7 @@ describe('import-export-service', () => {
         queries: [],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [
           { id: 'import-work', name: 'Work', parentId: null },
           { id: 'import-sub', name: 'Subwork', parentId: 'import-work' },
@@ -1199,7 +1202,7 @@ describe('import-export-service', () => {
       const existing = createEmptyExisting()
       const originalCreatedAt = '2020-01-01T00:00:00.000Z'
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'query-1',
@@ -1221,7 +1224,7 @@ describe('import-export-service', () => {
       const existing = createEmptyExisting()
       const originalUpdatedAt = '2020-01-01T00:00:00.000Z'
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'query-1',
@@ -1257,7 +1260,7 @@ describe('import-export-service', () => {
         ],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [
           { id: 'import-work', name: 'Work', parentId: null }, // Will be skipped
           { id: 'import-new', name: 'New Folder', parentId: null }, // Will be added
@@ -1304,7 +1307,7 @@ describe('import-export-service', () => {
           },
         ],
       }
-      const imported = createEmptyImport()
+      const imported = createEmptyImportData()
 
       const result = mergeImportData(existing, imported)
 
@@ -1317,7 +1320,7 @@ describe('import-export-service', () => {
     it('should handle empty existing library', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [{ id: 'folder-1', name: 'Work', parentId: null }],
         queries: [
           {
@@ -1342,7 +1345,7 @@ describe('import-export-service', () => {
     it('should generate new IDs for imported items', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [{ id: 'original-folder-id', name: 'Work', parentId: null }],
         queries: [
           {
@@ -1370,7 +1373,7 @@ describe('import-export-service', () => {
         queries: [],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [{ id: 'import-work', name: 'WORK', parentId: null }],
       }
 
@@ -1395,7 +1398,7 @@ describe('import-export-service', () => {
         ],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'import-query',
@@ -1417,7 +1420,7 @@ describe('import-export-service', () => {
     it('should handle queries with orphaned folderId', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'query-1',
@@ -1439,7 +1442,7 @@ describe('import-export-service', () => {
     it('should handle multiple imported queries with same name', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'query-1',
@@ -1492,7 +1495,7 @@ describe('import-export-service', () => {
         ],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'import-1',
@@ -1528,7 +1531,7 @@ describe('import-export-service', () => {
         ],
       }
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         queries: [
           {
             id: 'import-1',
@@ -1572,7 +1575,7 @@ describe('import-export-service', () => {
     it('should handle deeply nested folder structure', () => {
       const existing = createEmptyExisting()
       const imported: ExportData = {
-        ...createEmptyImport(),
+        ...createEmptyImportData(),
         folders: [
           { id: 'level-1', name: 'Level 1', parentId: null },
           { id: 'level-2', name: 'Level 2', parentId: 'level-1' },
@@ -1609,6 +1612,288 @@ describe('import-export-service', () => {
 
       // Query should point to level 4
       expect(result.queries[0].folderId).toBe(level4?.id)
+    })
+  })
+
+  describe('replaceWithImportData', () => {
+    it('should generate new IDs for all folders', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [
+          { id: 'original-folder-1', name: 'Work', parentId: null },
+          { id: 'original-folder-2', name: 'Personal', parentId: null },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.folders).toHaveLength(2)
+      expect(result.folders[0].id).not.toBe('original-folder-1')
+      expect(result.folders[1].id).not.toBe('original-folder-2')
+      // IDs should be valid UUIDs
+      expect(result.folders[0].id).toMatch(/^[a-f0-9-]{36}$/)
+      expect(result.folders[1].id).toMatch(/^[a-f0-9-]{36}$/)
+    })
+
+    it('should generate new IDs for all queries', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        queries: [
+          {
+            id: 'original-query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'original-query-2',
+            name: 'Q2',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.queries).toHaveLength(2)
+      expect(result.queries[0].id).not.toBe('original-query-1')
+      expect(result.queries[1].id).not.toBe('original-query-2')
+      // IDs should be valid UUIDs
+      expect(result.queries[0].id).toMatch(/^[a-f0-9-]{36}$/)
+      expect(result.queries[1].id).toMatch(/^[a-f0-9-]{36}$/)
+    })
+
+    it('should remap folder parentId correctly', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [
+          { id: 'parent-folder', name: 'Parent', parentId: null },
+          { id: 'child-folder', name: 'Child', parentId: 'parent-folder' },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      const parentFolder = result.folders.find((f) => f.name === 'Parent')
+      const childFolder = result.folders.find((f) => f.name === 'Child')
+
+      expect(parentFolder?.parentId).toBeNull()
+      expect(childFolder?.parentId).toBe(parentFolder?.id)
+      expect(childFolder?.parentId).not.toBe('parent-folder')
+    })
+
+    it('should remap query folderId correctly', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [{ id: 'original-folder', name: 'Work', parentId: null }],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'original-folder',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      const workFolder = result.folders.find((f) => f.name === 'Work')
+      expect(result.queries[0].folderId).toBe(workFolder?.id)
+      expect(result.queries[0].folderId).not.toBe('original-folder')
+    })
+
+    it('should preserve createdAt from imported queries', () => {
+      const originalCreatedAt = '2020-05-15T08:30:00.000Z'
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: originalCreatedAt,
+            updatedAt: '2020-05-15T08:30:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.queries[0].createdAt).toBe(originalCreatedAt)
+    })
+
+    it('should update updatedAt to current time', () => {
+      const originalUpdatedAt = '2020-01-01T00:00:00.000Z'
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: null,
+            createdAt: '2020-01-01T00:00:00.000Z',
+            updatedAt: originalUpdatedAt,
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      // updatedAt should be more recent than original
+      expect(new Date(result.queries[0].updatedAt).getTime()).toBeGreaterThan(
+        new Date(originalUpdatedAt).getTime()
+      )
+    })
+
+    it('should return correct stats', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [
+          { id: 'folder-1', name: 'Work', parentId: null },
+          { id: 'folder-2', name: 'Personal', parentId: null },
+          { id: 'folder-3', name: 'Archive', parentId: 'folder-1' },
+        ],
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'folder-1',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+          {
+            id: 'query-2',
+            name: 'Q2',
+            sql: 'SELECT 2',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.stats.foldersImported).toBe(3)
+      expect(result.stats.queriesImported).toBe(2)
+    })
+
+    it('should handle empty import', () => {
+      const imported = createEmptyImportData()
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.folders).toHaveLength(0)
+      expect(result.queries).toHaveLength(0)
+      expect(result.stats.foldersImported).toBe(0)
+      expect(result.stats.queriesImported).toBe(0)
+    })
+
+    it('should handle nested folder structure', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [
+          { id: 'level-1', name: 'Level 1', parentId: null },
+          { id: 'level-2', name: 'Level 2', parentId: 'level-1' },
+          { id: 'level-3', name: 'Level 3', parentId: 'level-2' },
+          { id: 'level-4', name: 'Level 4', parentId: 'level-3' },
+        ],
+        queries: [
+          {
+            id: 'deep-query',
+            name: 'Deep Query',
+            sql: 'SELECT 1',
+            folderId: 'level-4',
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.folders).toHaveLength(4)
+      expect(result.stats.foldersImported).toBe(4)
+
+      // Verify folder hierarchy is preserved
+      const level1 = result.folders.find((f) => f.name === 'Level 1')
+      const level2 = result.folders.find((f) => f.name === 'Level 2')
+      const level3 = result.folders.find((f) => f.name === 'Level 3')
+      const level4 = result.folders.find((f) => f.name === 'Level 4')
+
+      expect(level1?.parentId).toBeNull()
+      expect(level2?.parentId).toBe(level1?.id)
+      expect(level3?.parentId).toBe(level2?.id)
+      expect(level4?.parentId).toBe(level3?.id)
+
+      // Query should point to level 4
+      expect(result.queries[0].folderId).toBe(level4?.id)
+    })
+
+    it('should handle queries with orphaned folderId', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'Q1',
+            sql: 'SELECT 1',
+            folderId: 'non-existent-folder', // Not in import folders
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      // Query should be placed at root since folder doesn't exist
+      expect(result.queries[0].folderId).toBeNull()
+    })
+
+    it('should preserve query name and sql content', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        queries: [
+          {
+            id: 'query-1',
+            name: 'My Special Query',
+            sql: 'SELECT * FROM users WHERE active = 1',
+            folderId: null,
+            createdAt: '2026-01-20T10:00:00.000Z',
+            updatedAt: '2026-01-20T10:00:00.000Z',
+          },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.queries[0].name).toBe('My Special Query')
+      expect(result.queries[0].sql).toBe('SELECT * FROM users WHERE active = 1')
+    })
+
+    it('should preserve folder names', () => {
+      const imported: ExportData = {
+        ...createEmptyImportData(),
+        folders: [
+          { id: 'folder-1', name: 'My Work Queries', parentId: null },
+        ],
+      }
+
+      const result = replaceWithImportData(imported)
+
+      expect(result.folders[0].name).toBe('My Work Queries')
     })
   })
 })

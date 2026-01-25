@@ -1,0 +1,107 @@
+/**
+ * Confirmation Modal Component Styles
+ * BEM naming convention: .confirm-modal, .confirm-modal__element, .confirm-modal--modifier
+ */
+
+/* Overlay - covers entire popup */
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+/* Modal container */
+.confirm-modal {
+  background-color: var(--color-bg, #ffffff);
+  border-radius: var(--border-radius, 4px);
+  padding: var(--space-md, 16px);
+  max-width: 320px;
+  width: calc(100% - 32px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Modal title */
+.confirm-modal__title {
+  font-size: var(--font-size-lg, 16px);
+  font-weight: 600;
+  margin: 0 0 var(--space-sm, 8px) 0;
+  color: var(--color-text, #202124);
+}
+
+/* Modal message */
+.confirm-modal__message {
+  font-size: var(--font-size-md, 14px);
+  color: var(--color-text-secondary, #5f6368);
+  margin: 0 0 var(--space-md, 16px) 0;
+  line-height: 1.4;
+}
+
+/* Actions container */
+.confirm-modal__actions {
+  display: flex;
+  gap: var(--space-sm, 8px);
+  justify-content: flex-end;
+}
+
+/* Base button styles */
+.confirm-modal__btn {
+  padding: var(--space-sm, 8px) var(--space-md, 16px);
+  border-radius: var(--border-radius, 4px);
+  font-size: var(--font-size-md, 14px);
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+/* Cancel button (secondary) */
+.confirm-modal__btn--cancel {
+  background-color: transparent;
+  border-color: var(--color-border, #dadce0);
+  color: var(--color-text, #202124);
+}
+
+.confirm-modal__btn--cancel:hover {
+  background-color: var(--color-hover, #e8f0fe);
+}
+
+/* Confirm button (primary) */
+.confirm-modal__btn--confirm {
+  background-color: var(--color-primary, #4285f4);
+  color: #ffffff;
+}
+
+.confirm-modal__btn--confirm:hover {
+  background-color: #3367d6;
+}
+
+/* Danger button (destructive action) */
+.confirm-modal__btn--danger {
+  background-color: var(--color-danger, #ea4335);
+  color: #ffffff;
+}
+
+.confirm-modal__btn--danger:hover {
+  background-color: #d33426;
+}
+
+/* Focus states */
+.confirm-modal__btn:focus-visible {
+  outline: 2px solid var(--color-primary, #4285f4);
+  outline-offset: 2px;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .confirm-modal__btn {
+    transition: none;
+  }
+}

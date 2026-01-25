@@ -21,9 +21,10 @@ import { showContextMenu, hideContextMenu } from './components/context-menu'
 import { createQueryPreview, updateQueryPreview } from './components/query-preview'
 import { sendToServiceWorker } from '../shared/services/message-service'
 import type { Folder, Query } from '../shared/types/storage.types'
-import type { ExportData, ImportPreview as ImportPreviewData, MergeStats } from '../shared/services/import-export-service'
+import type { ExportData, ImportPreview as ImportPreviewData, MergeStats, ReplaceStats } from '../shared/services/import-export-service'
 import { parseImportFile, getImportPreview } from '../shared/services/import-export-service'
 import { renderImportPreview } from './components/import-preview'
+import { showConfirmModal } from './components/confirm-modal'
 import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
 import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 
@@ -830,6 +831,66 @@ async function handleMerge(): Promise<void> {
 }
 
 /**
+ * Handle replace action - replace existing library with imported data (Story 5-5)
+ * Shows confirmation modal and sends IMPORT_REPLACE message to service worker
+ */
+async function handleReplace(): Promise<void> {
+  if (!pendingImportData) return
+
+  // Show confirmation modal (AC1)
+  const confirmed = await showConfirmModal(
+    'Replace Library?',
+    'This will permanently delete all your current queries and folders.',
+    'Replace',
+    true  // danger style
+  )
+
+  if (!confirmed) return
+
+  // Find and disable replace button to show loading state
+  const replaceBtn = document.querySelector('.js-replace') as HTMLButtonElement | null
+  let originalText = 'Replace'
+  if (replaceBtn) {
+    originalText = replaceBtn.textContent ?? 'Replace'
+    replaceBtn.disabled = true
+    replaceBtn.textContent = 'Replacing...'
+  }
+
+  const result = await sendToServiceWorker<ReplaceStats>({
+    type: 'IMPORT_REPLACE',
+    payload: { importData: pendingImportData },
+  })
+
+  if (result.success) {
+    hideImportPreviewOverlay()
+    pendingImportData = null
+
+    // Build toast message with stats (AC3)
+    const stats = result.data
+    let message: string
+    if (stats.foldersImported > 0) {
+      const folderText = formatCount(stats.foldersImported, 'folder', 'folders')
+      const queryText = formatCount(stats.queriesImported, 'query', 'queries')
+      message = `Library replaced with ${folderText} and ${queryText}`
+    } else {
+      const queryText = formatCount(stats.queriesImported, 'query', 'queries')
+      message = `Library replaced with ${queryText}`
+    }
+    showToast(message, 'success')
+
+    // Refresh tree view with new data
+    await loadQueriesAndFolders()
+  } else {
+    showToast(result.error ?? 'Replace failed', 'error')
+    // Re-enable button on error
+    if (replaceBtn) {
+      replaceBtn.disabled = false
+      replaceBtn.textContent = originalText
+    }
+  }
+}
+
+/**
  * Show import preview overlay (AC4)
  * Creates modal-like overlay with preview and action buttons
  */
@@ -843,11 +904,7 @@ function showImportPreviewOverlay(preview: ImportPreviewData): void {
 
   renderImportPreview(previewContainer, preview, {
     onMerge: handleMerge,
-    onReplace: () => {
-      // Will be implemented in Story 5-5
-      hideImportPreviewOverlay()
-      showToast('Replace not yet implemented', 'info')
-    },
+    onReplace: handleReplace,
     onCancel: () => {
       hideImportPreviewOverlay()
       pendingImportData = null

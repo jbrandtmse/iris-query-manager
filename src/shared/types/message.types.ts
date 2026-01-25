@@ -33,8 +33,9 @@ export type MessageType =
   // Export messages (Story 5-1, 5-2)
   | { type: 'EXPORT_ALL' }
   | { type: 'EXPORT_FOLDER'; payload: { folderId: string } }
-  // Import messages (Story 5-4)
+  // Import messages (Story 5-4, 5-5)
   | { type: 'IMPORT_MERGE'; payload: { importData: ExportData } }
+  | { type: 'IMPORT_REPLACE'; payload: { importData: ExportData } }
 
 // Re-export Result as MessageResult for backwards compatibility
 export type MessageResult<T> = Result<T>

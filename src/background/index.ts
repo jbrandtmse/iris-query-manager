@@ -3,8 +3,8 @@ import { isSmpUrl } from '../shared/utils/url-utils'
 import { setActiveState, setInactiveState } from './icon-state'
 import { sendToContentScript } from '../shared/services/message-service'
 import * as storageService from '../shared/services/storage-service'
-import { exportAll, exportFolder, mergeImportData } from '../shared/services/import-export-service'
-import type { MergeStats } from '../shared/services/import-export-service'
+import { exportAll, exportFolder, mergeImportData, replaceWithImportData } from '../shared/services/import-export-service'
+import type { MergeStats, ReplaceStats } from '../shared/services/import-export-service'
 
 console.log('[IRIS Query Manager] Service worker initialized')
 
@@ -214,6 +214,13 @@ chrome.runtime.onMessage.addListener(
       return true // Async response
     }
 
+    // Handle IMPORT_REPLACE: Replace existing library with imported data (Story 5-5)
+    if (message.type === 'IMPORT_REPLACE') {
+      const { importData } = message.payload
+      handleImportReplace(importData, sendResponse)
+      return true // Async response
+    }
+
     // Handle PASTE_QUERY: Send SQL to content script to paste into SMP textarea
     if (message.type === 'PASTE_QUERY') {
       const { sql } = message.payload
@@ -414,6 +421,27 @@ async function handleImportMerge(
 
   if (!saveResult.success) {
     sendResponse({ success: false, error: 'Failed to save merged data' })
+    return
+  }
+
+  sendResponse({ success: true, data: stats })
+}
+
+/**
+ * Handle IMPORT_REPLACE message: Replace existing library with imported data (Story 5-5)
+ */
+async function handleImportReplace(
+  importData: Parameters<typeof replaceWithImportData>[0],
+  sendResponse: (response: MessageResult<ReplaceStats>) => void
+): Promise<void> {
+  // Prepare replacement data (generates new IDs, remaps references)
+  const { folders, queries, stats } = replaceWithImportData(importData)
+
+  // Replace all existing data with imported data
+  const saveResult = await storageService.replaceAll({ folders, queries })
+
+  if (!saveResult.success) {
+    sendResponse({ success: false, error: 'Failed to save replacement data' })
     return
   }
 

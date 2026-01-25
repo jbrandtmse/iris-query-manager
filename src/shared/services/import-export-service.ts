@@ -457,3 +457,96 @@ export function mergeImportData(
     stats,
   }
 }
+
+/**
+ * Replace statistics returned after import replace operation (FR20)
+ */
+export interface ReplaceStats {
+  foldersImported: number
+  queriesImported: number
+}
+
+/**
+ * Result of replace operation including new data and statistics
+ */
+export interface ReplaceResult {
+  folders: Folder[]
+  queries: Query[]
+  stats: ReplaceStats
+}
+
+/**
+ * Prepare imported data to completely replace existing library (FR20)
+ *
+ * Strategy:
+ * - All existing data will be discarded (handled by caller via StorageService.replaceAll)
+ * - All imported items get new IDs to ensure uniqueness
+ * - References (parentId, folderId) are remapped to new IDs
+ * - Original timestamps preserved where possible
+ *
+ * @param imported - Validated data from import file
+ * @returns Data ready to save (replaces everything), plus stats for user feedback
+ */
+export function replaceWithImportData(imported: ExportData): ReplaceResult {
+  const stats: ReplaceStats = {
+    foldersImported: 0,
+    queriesImported: 0,
+  }
+
+  const newFolders: Folder[] = []
+  const newQueries: Query[] = []
+
+  // Map imported IDs to new IDs
+  const folderIdMap: Map<string, string> = new Map()
+
+  // Process folders level by level (root first, then children)
+  // This ensures parent folder IDs are mapped before processing children
+  const importedFoldersByParent = groupBy(imported.folders, (f) => f.parentId ?? 'root')
+
+  function processFolderLevel(parentKey: string, newParentId: string | null): void {
+    const foldersAtLevel = importedFoldersByParent.get(parentKey) ?? []
+
+    for (const importedFolder of foldersAtLevel) {
+      const newId = crypto.randomUUID()
+      folderIdMap.set(importedFolder.id, newId)
+
+      newFolders.push({
+        id: newId,
+        name: importedFolder.name,
+        parentId: newParentId,
+      })
+      stats.foldersImported++
+
+      // Process children of this folder
+      processFolderLevel(importedFolder.id, newId)
+    }
+  }
+
+  // Start with root-level folders
+  processFolderLevel('root', null)
+
+  // Process queries
+  const now = new Date().toISOString()
+  for (const importedQuery of imported.queries) {
+    // Map folderId to new folder ID (null if folder wasn't in import or was orphaned)
+    const newFolderId = importedQuery.folderId
+      ? folderIdMap.get(importedQuery.folderId) ?? null
+      : null
+
+    newQueries.push({
+      id: crypto.randomUUID(),
+      name: importedQuery.name,
+      sql: importedQuery.sql,
+      folderId: newFolderId,
+      createdAt: importedQuery.createdAt,  // Preserve original creation time
+      updatedAt: now,  // Mark as updated now (import is a modification)
+    })
+    stats.queriesImported++
+  }
+
+  return {
+    folders: newFolders,
+    queries: newQueries,
+    stats,
+  }
+}
