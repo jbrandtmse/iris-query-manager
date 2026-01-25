@@ -3,8 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { createTreeItem, clearDebounceState } from './tree-item'
-import type { Query } from '../../shared/types/storage.types'
+import { createTreeItem, createFolderTreeItem, clearDebounceState, clearFolderDebounceState } from './tree-item'
+import type { Query, Folder } from '../../shared/types/storage.types'
 
 const mockQuery: Query = {
   id: 'test-id-123',
@@ -416,8 +416,206 @@ describe('tree-item', () => {
 
 // ========== Story 4-1: Folder Tree Item Tests ==========
 
-import { createFolderTreeItem, clearFolderDebounceState } from './tree-item'
-import type { Folder } from '../../shared/types/storage.types'
+// ========== Story 6-2: Warning Badge Integration Tests ==========
+
+describe('tree-item warning badge integration (Story 6-2)', () => {
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    clearDebounceState()
+  })
+
+  describe('danger badge display (AC: 1)', () => {
+    it('should show danger badge for query with DELETE', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DELETE FROM users WHERE id = 1',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('DELETE')
+      expect(badge?.classList.contains('warning-badge--danger')).toBe(true)
+    })
+
+    it('should show danger badge for query with DROP', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DROP TABLE users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('DROP')
+      expect(badge?.classList.contains('warning-badge--danger')).toBe(true)
+    })
+
+    it('should show danger badge for query with TRUNCATE', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'TRUNCATE TABLE logs',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('TRUNCATE')
+      expect(badge?.classList.contains('warning-badge--danger')).toBe(true)
+    })
+  })
+
+  describe('caution badge display (AC: 2)', () => {
+    it('should show caution badge for query with UPDATE', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'UPDATE users SET name = "test"',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('UPDATE')
+      expect(badge?.classList.contains('warning-badge--caution')).toBe(true)
+    })
+
+    it('should show caution badge for query with ALTER', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'ALTER TABLE users ADD COLUMN age INT',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('ALTER')
+      expect(badge?.classList.contains('warning-badge--caution')).toBe(true)
+    })
+
+    it('should show caution badge for query with INSERT', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'INSERT INTO users (name) VALUES ("test")',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      expect(badge?.textContent).toBe('INSERT')
+      expect(badge?.classList.contains('warning-badge--caution')).toBe(true)
+    })
+  })
+
+  describe('safe query (AC: 3)', () => {
+    it('should show no badge for safe SELECT query', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'SELECT * FROM users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).toBeNull()
+    })
+
+    it('should show no badge for query with no SQL', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: '',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).toBeNull()
+    })
+  })
+
+  describe('multiple keywords', () => {
+    it('should show first keyword badge when query has multiple destructive keywords', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DELETE FROM users; DROP TABLE users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      // Should show the first detected keyword
+      expect(badge?.textContent).toBe('DELETE')
+      expect(badge?.classList.contains('warning-badge--danger')).toBe(true)
+    })
+
+    it('should show danger badge when query has both danger and caution keywords', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'UPDATE users SET deleted = true; DELETE FROM users WHERE deleted = true',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge).not.toBeNull()
+      // Should prioritize danger severity
+      expect(badge?.classList.contains('warning-badge--danger')).toBe(true)
+    })
+  })
+
+  describe('badge positioning', () => {
+    it('should position badge after name span', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DELETE FROM users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const nameSpan = item.querySelector('.tree-item__name')
+      const badge = item.querySelector('.warning-badge')
+
+      expect(nameSpan).not.toBeNull()
+      expect(badge).not.toBeNull()
+
+      // Badge should come after name span in DOM order
+      const children = Array.from(item.children)
+      const nameIndex = children.indexOf(nameSpan as Element)
+      const badgeIndex = children.indexOf(badge as Element)
+      expect(badgeIndex).toBeGreaterThan(nameIndex)
+    })
+  })
+
+  describe('accessibility', () => {
+    it('should have role="status" on badge', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DELETE FROM users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge?.getAttribute('role')).toBe('status')
+    })
+
+    it('should have descriptive aria-label on danger badge', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'DELETE FROM users',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge?.getAttribute('aria-label')).toBe('Destructive query: DELETE')
+    })
+
+    it('should have descriptive aria-label on caution badge', () => {
+      const query: Query = {
+        ...mockQuery,
+        sql: 'UPDATE users SET name = "test"',
+      }
+      const item = createTreeItem({ query, isSelected: false })
+
+      const badge = item.querySelector('.warning-badge')
+      expect(badge?.getAttribute('aria-label')).toBe('Caution: UPDATE')
+    })
+  })
+})
 
 const mockFolder: Folder = {
   id: 'folder-123',

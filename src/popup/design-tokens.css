@@ -7,7 +7,10 @@
   /* Colors */
   --color-primary: #4285f4;
   --color-danger: #ea4335;
+  --color-danger-bg: #fce8e6;
   --color-warning: #fbbc04;
+  --color-caution: #b06000;
+  --color-caution-bg: #fef7e0;
   --color-success: #34a853;
   --color-text: #202124;
   --color-text-secondary: #5f6368;

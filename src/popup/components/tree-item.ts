@@ -6,6 +6,8 @@
 import './tree-item.css'
 import type { Query, Folder } from '../../shared/types/storage.types'
 import { ICONS } from '../icons'
+import { detectDestructiveKeywords } from '../../shared/services/sql-detection-service'
+import { createWarningBadge } from './warning-badge'
 
 export type TreeItemClickHandler = (id: string) => void
 export type FolderToggleHandler = (folderId: string, isExpanded: boolean) => void
@@ -86,6 +88,18 @@ export function createTreeItem(options: TreeItemOptions): HTMLDivElement {
   nameSpan.textContent = query.name
   nameSpan.title = query.name // Tooltip for truncated names
   item.appendChild(nameSpan)
+
+  // Warning badge for destructive queries (Story 6-2)
+  if (query.sql) {
+    const detection = detectDestructiveKeywords(query.sql)
+    if (detection.isDestructive && detection.keywords.length > 0) {
+      const badge = createWarningBadge({
+        keyword: detection.keywords[0],
+        severity: detection.severity,
+      })
+      item.appendChild(badge)
+    }
+  }
 
   // Click handler with debounce to prevent double-click double-paste
   item.addEventListener('click', () => {

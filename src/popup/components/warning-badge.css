@@ -1,0 +1,26 @@
+/**
+ * Warning Badge Styles (Story 6-2)
+ *
+ * Semantic colors for destructive query warnings:
+ * - Danger (red): DELETE, DROP, TRUNCATE
+ * - Caution (amber): UPDATE, ALTER, INSERT
+ */
+
+.warning-badge {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-left: auto; /* Push to right in flexbox */
+  flex-shrink: 0; /* Don't shrink badge */
+}
+
+.warning-badge--danger {
+  background-color: var(--color-danger-bg, #fce8e6);
+  color: var(--color-danger, #ea4335);
+}
+
+.warning-badge--caution {
+  background-color: var(--color-caution-bg, #fef7e0);
+  color: var(--color-caution, #b06000);
+}
