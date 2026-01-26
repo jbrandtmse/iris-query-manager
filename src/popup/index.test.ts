@@ -17,9 +17,13 @@ vi.mock('../shared/services/message-service', () => ({
   sendToServiceWorker: vi.fn(),
 }))
 
-vi.mock('../shared/utils/sql-utils', () => ({
-  checkSqlSafety: vi.fn(() => ({ isDangerous: false, keyword: null })),
-  getDangerousSqlWarning: vi.fn(),
+vi.mock('./components/warning-modal', () => ({
+  showWarningModal: vi.fn(),
+  hideWarningModal: vi.fn(),
+}))
+
+vi.mock('../shared/services/sql-detection-service', () => ({
+  detectDestructiveKeywords: vi.fn(() => ({ isDestructive: false, keywords: [], severity: 'none' })),
 }))
 
 vi.mock('../shared/utils/file-utils', () => ({
@@ -31,7 +35,8 @@ vi.mock('../shared/utils/file-utils', () => ({
 // Import mocked functions after vi.mock calls
 import { showToast } from './components/toast'
 import { sendToServiceWorker } from '../shared/services/message-service'
-import { checkSqlSafety } from '../shared/utils/sql-utils'
+import { showWarningModal, hideWarningModal } from './components/warning-modal'
+import { detectDestructiveKeywords } from '../shared/services/sql-detection-service'
 import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 import type { Query, Folder } from '../shared/types/storage.types'
 import type { MessageResult } from '../shared/types/message.types'
@@ -60,12 +65,32 @@ const createMockFolder = (overrides?: Partial<Folder>): Folder => ({
 // For now, let's test the individual behaviors through a simplified test approach
 
 describe('Story 3-4: handleQueryActivate paste flow', () => {
+  // Helper to execute paste operation (mirrors executePaste helper)
+  async function executePaste(query: Query): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    const result = (await mockedSendToServiceWorker({
+      type: 'PASTE_QUERY',
+      payload: { sql: query.sql },
+    })) as MessageResult<null>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    mockedShowToast(`Pasted: ${query.name}`, 'success')
+  }
+
   // Create a simplified version of handleQueryActivate for testing
-  // This mirrors the actual implementation logic
+  // This mirrors the actual implementation logic (Story 6-4 update)
   async function handleQueryActivate(query: Query): Promise<void> {
     const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
     const mockedShowToast = vi.mocked(showToast)
-    const mockedCheckSqlSafety = vi.mocked(checkSqlSafety)
+    const mockedDetectDestructiveKeywords = vi.mocked(detectDestructiveKeywords)
+    const mockedShowWarningModal = vi.mocked(showWarningModal)
+    const mockedHideWarningModal = vi.mocked(hideWarningModal)
 
     // Check SMP availability BEFORE attempting paste (Story 3-4 AC4)
     const statusResult = (await mockedSendToServiceWorker({
@@ -77,33 +102,34 @@ describe('Story 3-4: handleQueryActivate paste flow', () => {
       return
     }
 
-    // Check for dangerous SQL before paste (per project-context.md)
-    const safetyCheck = mockedCheckSqlSafety(query.sql)
+    // Check for destructive SQL using detection service (Story 6-4)
+    const detection = mockedDetectDestructiveKeywords(query.sql)
 
-    if (safetyCheck.isDangerous) {
-      // Skip confirm dialog check in tests for simplicity
-      return
+    if (detection.isDestructive) {
+      // Show warning modal for destructive queries
+      mockedShowWarningModal({
+        queryName: query.name,
+        sql: query.sql,
+        detection,
+        onConfirm: async () => {
+          mockedHideWarningModal()
+          await executePaste(query)
+        },
+        onCancel: () => {
+          mockedHideWarningModal()
+        },
+      })
+      return // Wait for modal interaction
     }
 
-    // Paste query SQL to SMP textarea (Story 3-2 AC2)
-    const result = (await mockedSendToServiceWorker({
-      type: 'PASTE_QUERY',
-      payload: { sql: query.sql },
-    })) as MessageResult<null>
-
-    if (!result.success) {
-      mockedShowToast(result.error, 'error')
-      return
-    }
-
-    // Show success feedback
-    mockedShowToast(`Pasted: ${query.name}`, 'success')
+    // If not destructive, paste immediately
+    await executePaste(query)
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
-    // Reset sql safety check to return safe by default
-    vi.mocked(checkSqlSafety).mockReturnValue({ isDangerous: false, keyword: null })
+    // Reset sql detection to return safe by default
+    vi.mocked(detectDestructiveKeywords).mockReturnValue({ isDestructive: false, keywords: [], severity: 'none' })
   })
 
   describe('SMP status check before paste (AC4)', () => {
@@ -273,21 +299,25 @@ describe('Story 3-4: handleQueryActivate paste flow', () => {
     })
   })
 
-  describe('SQL safety check', () => {
-    it('should check SQL safety before paste when SMP available', async () => {
+  describe('SQL detection (Story 6-4)', () => {
+    it('should check SQL for destructive keywords when SMP available', async () => {
       const query = createMockQuery({ sql: 'DELETE FROM users' })
 
       vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
         success: true,
         data: { available: true },
       })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: null,
+      })
 
       await handleQueryActivate(query)
 
-      expect(checkSqlSafety).toHaveBeenCalledWith('DELETE FROM users')
+      expect(detectDestructiveKeywords).toHaveBeenCalledWith('DELETE FROM users')
     })
 
-    it('should NOT check SQL safety if SMP unavailable', async () => {
+    it('should NOT check SQL for destructive keywords if SMP unavailable', async () => {
       const query = createMockQuery({ sql: 'DELETE FROM users' })
 
       vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
@@ -297,7 +327,303 @@ describe('Story 3-4: handleQueryActivate paste flow', () => {
 
       await handleQueryActivate(query)
 
-      expect(checkSqlSafety).not.toHaveBeenCalled()
+      expect(detectDestructiveKeywords).not.toHaveBeenCalled()
+    })
+  })
+})
+
+describe('Story 6-4: handleQueryActivate with warning modal', () => {
+  // Helper to execute paste operation (mirrors executePaste helper)
+  async function executePaste(query: Query): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+
+    const result = (await mockedSendToServiceWorker({
+      type: 'PASTE_QUERY',
+      payload: { sql: query.sql },
+    })) as MessageResult<null>
+
+    if (!result.success) {
+      mockedShowToast(result.error, 'error')
+      return
+    }
+
+    mockedShowToast(`Pasted: ${query.name}`, 'success')
+  }
+
+  // Create a simplified version of handleQueryActivate for testing
+  async function handleQueryActivate(query: Query): Promise<void> {
+    const mockedSendToServiceWorker = vi.mocked(sendToServiceWorker)
+    const mockedShowToast = vi.mocked(showToast)
+    const mockedDetectDestructiveKeywords = vi.mocked(detectDestructiveKeywords)
+    const mockedShowWarningModal = vi.mocked(showWarningModal)
+    const mockedHideWarningModal = vi.mocked(hideWarningModal)
+
+    // Check SMP availability BEFORE attempting paste (Story 3-4 AC4)
+    const statusResult = (await mockedSendToServiceWorker({
+      type: 'GET_SMP_STATUS',
+    })) as MessageResult<{ available: boolean }>
+
+    if (!statusResult.success || !statusResult.data.available) {
+      mockedShowToast('SMP textarea not detected on this page', 'error')
+      return
+    }
+
+    // Check for destructive SQL using detection service (Story 6-4)
+    const detection = mockedDetectDestructiveKeywords(query.sql)
+
+    if (detection.isDestructive) {
+      // Show warning modal for destructive queries
+      mockedShowWarningModal({
+        queryName: query.name,
+        sql: query.sql,
+        detection,
+        onConfirm: async () => {
+          mockedHideWarningModal()
+          await executePaste(query)
+        },
+        onCancel: () => {
+          mockedHideWarningModal()
+        },
+      })
+      return // Wait for modal interaction
+    }
+
+    // If not destructive, paste immediately
+    await executePaste(query)
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Reset sql detection to return safe by default
+    vi.mocked(detectDestructiveKeywords).mockReturnValue({ isDestructive: false, keywords: [], severity: 'none' })
+  })
+
+  describe('AC1: Modal displays for destructive queries', () => {
+    it('should show warning modal for DELETE query', async () => {
+      const query = createMockQuery({ name: 'Clear Users', sql: 'DELETE FROM users' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+
+      await handleQueryActivate(query)
+
+      expect(showWarningModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryName: 'Clear Users',
+          sql: 'DELETE FROM users',
+          detection: { isDestructive: true, keywords: ['DELETE'], severity: 'danger' },
+        })
+      )
+    })
+
+    it('should show warning modal for DROP query', async () => {
+      const query = createMockQuery({ name: 'Drop Table', sql: 'DROP TABLE users' })
+      const detection = { isDestructive: true, keywords: ['DROP'] as any, severity: 'danger' as const }
+
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+
+      await handleQueryActivate(query)
+
+      expect(showWarningModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detection: expect.objectContaining({ keywords: ['DROP'], severity: 'danger' }),
+        })
+      )
+    })
+
+    it('should show warning modal for UPDATE query with caution severity', async () => {
+      const query = createMockQuery({ name: 'Update Users', sql: 'UPDATE users SET active = 1' })
+      const detection = { isDestructive: true, keywords: ['UPDATE'] as any, severity: 'caution' as const }
+
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+
+      await handleQueryActivate(query)
+
+      expect(showWarningModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detection: expect.objectContaining({ severity: 'caution' }),
+        })
+      )
+    })
+  })
+
+  describe('AC1: Cancel closes modal without paste', () => {
+    it('should NOT paste when user clicks Cancel', async () => {
+      const query = createMockQuery({ name: 'Clear Users', sql: 'DELETE FROM users' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      let capturedOnCancel: (() => void) | undefined
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(showWarningModal).mockImplementation((options) => {
+        capturedOnCancel = options.onCancel
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+
+      await handleQueryActivate(query)
+
+      // Simulate user clicking Cancel
+      capturedOnCancel?.()
+
+      expect(hideWarningModal).toHaveBeenCalled()
+      // PASTE_QUERY should NOT have been called (only GET_SMP_STATUS was called)
+      expect(sendToServiceWorker).toHaveBeenCalledTimes(1)
+      expect(sendToServiceWorker).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'PASTE_QUERY' })
+      )
+    })
+  })
+
+  describe('AC2: Confirm pastes query and shows toast', () => {
+    it('should paste and show success toast when user clicks Paste Anyway', async () => {
+      const query = createMockQuery({ name: 'Clear Users', sql: 'DELETE FROM users' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      let capturedOnConfirm: (() => Promise<void>) | undefined
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(showWarningModal).mockImplementation((options) => {
+        capturedOnConfirm = options.onConfirm as () => Promise<void>
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: null,
+      })
+
+      await handleQueryActivate(query)
+
+      // Simulate user clicking Paste Anyway
+      await capturedOnConfirm?.()
+
+      expect(hideWarningModal).toHaveBeenCalled()
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'PASTE_QUERY',
+        payload: { sql: 'DELETE FROM users' },
+      })
+      expect(showToast).toHaveBeenCalledWith('Pasted: Clear Users', 'success')
+    })
+  })
+
+  describe('AC3: Escape key acts as Cancel', () => {
+    it('should provide onCancel callback for Escape key handling', async () => {
+      const query = createMockQuery({ sql: 'DELETE FROM users' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+
+      await handleQueryActivate(query)
+
+      // Verify onCancel callback is provided (modal handles Escape key internally)
+      expect(showWarningModal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          onCancel: expect.any(Function),
+        })
+      )
+    })
+  })
+
+  describe('AC5: Safe queries bypass modal', () => {
+    it('should paste directly for safe SELECT query without showing modal', async () => {
+      const query = createMockQuery({ name: 'Get Users', sql: 'SELECT * FROM users' })
+
+      vi.mocked(detectDestructiveKeywords).mockReturnValue({
+        isDestructive: false,
+        keywords: [],
+        severity: 'none',
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: null,
+      })
+
+      await handleQueryActivate(query)
+
+      // Modal should NOT be shown
+      expect(showWarningModal).not.toHaveBeenCalled()
+
+      // Paste should happen directly
+      expect(sendToServiceWorker).toHaveBeenCalledWith({
+        type: 'PASTE_QUERY',
+        payload: { sql: 'SELECT * FROM users' },
+      })
+      expect(showToast).toHaveBeenCalledWith('Pasted: Get Users', 'success')
+    })
+  })
+
+  describe('AC5: Success toast after modal confirmation', () => {
+    it('should show success toast after confirmed paste', async () => {
+      const query = createMockQuery({ name: 'Remove Inactive', sql: 'DELETE FROM users WHERE active = 0' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      let capturedOnConfirm: (() => Promise<void>) | undefined
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(showWarningModal).mockImplementation((options) => {
+        capturedOnConfirm = options.onConfirm as () => Promise<void>
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: null,
+      })
+
+      await handleQueryActivate(query)
+      await capturedOnConfirm?.()
+
+      expect(showToast).toHaveBeenCalledWith('Pasted: Remove Inactive', 'success')
+    })
+
+    it('should show error toast if paste fails after confirmation', async () => {
+      const query = createMockQuery({ name: 'Clear Users', sql: 'DELETE FROM users' })
+      const detection = { isDestructive: true, keywords: ['DELETE'] as any, severity: 'danger' as const }
+
+      let capturedOnConfirm: (() => Promise<void>) | undefined
+      vi.mocked(detectDestructiveKeywords).mockReturnValue(detection)
+      vi.mocked(showWarningModal).mockImplementation((options) => {
+        capturedOnConfirm = options.onConfirm as () => Promise<void>
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: true,
+        data: { available: true },
+      })
+      vi.mocked(sendToServiceWorker).mockResolvedValueOnce({
+        success: false,
+        error: 'Content script not responding',
+      })
+
+      await handleQueryActivate(query)
+      await capturedOnConfirm?.()
+
+      expect(showToast).toHaveBeenCalledWith('Content script not responding', 'error')
+      expect(showToast).not.toHaveBeenCalledWith(expect.stringContaining('Pasted:'), 'success')
     })
   })
 })

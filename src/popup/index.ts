@@ -25,7 +25,8 @@ import type { ExportData, ImportPreview as ImportPreviewData, MergeStats, Replac
 import { parseImportFile, getImportPreview } from '../shared/services/import-export-service'
 import { renderImportPreview } from './components/import-preview'
 import { showConfirmModal } from './components/confirm-modal'
-import { checkSqlSafety, getDangerousSqlWarning } from '../shared/utils/sql-utils'
+import { showWarningModal, hideWarningModal } from './components/warning-modal'
+import { detectDestructiveKeywords } from '../shared/services/sql-detection-service'
 import { downloadJsonFile, generateExportFilename, generateFolderExportFilename } from '../shared/utils/file-utils'
 
 // Module-level references for component access
@@ -384,8 +385,26 @@ function handleQuerySelectionChange(query: Query): void {
 }
 
 /**
+ * Execute paste operation and show feedback (Story 6-4)
+ * Called after safety check passes or user confirms in modal
+ */
+async function executePaste(query: Query): Promise<void> {
+  const result = await sendToServiceWorker<null>({
+    type: 'PASTE_QUERY',
+    payload: { sql: query.sql },
+  })
+
+  if (!result.success) {
+    showToast(result.error, 'error')
+    return
+  }
+
+  showToast(`Pasted: ${query.name}`, 'success')
+}
+
+/**
  * Handle query activation (click or Enter)
- * Triggers paste to SMP textarea with SQL safety check
+ * Triggers paste to SMP textarea with SQL safety check via warning modal (Story 6-4)
  */
 async function handleQueryActivate(query: Query): Promise<void> {
   // Check SMP availability BEFORE attempting paste (Story 3-4 AC4)
@@ -398,30 +417,28 @@ async function handleQueryActivate(query: Query): Promise<void> {
     return
   }
 
-  // Check for dangerous SQL before paste (per project-context.md)
-  const safetyCheck = checkSqlSafety(query.sql)
+  // Check for destructive SQL using new detection service (Story 6-4 FR25)
+  const detection = detectDestructiveKeywords(query.sql)
 
-  if (safetyCheck.isDangerous) {
-    const warning = getDangerousSqlWarning(safetyCheck.keyword!)
-    const confirmed = window.confirm(warning)
-    if (!confirmed) {
-      return // User cancelled
-    }
+  if (detection.isDestructive) {
+    // Show warning modal for destructive queries (AC1, AC2, AC3, AC4)
+    // Note: Modal handles its own hide on button click, callbacks just handle the action
+    showWarningModal({
+      queryName: query.name,
+      sql: query.sql,
+      detection,
+      onConfirm: async () => {
+        await executePaste(query)
+      },
+      onCancel: () => {
+        // No action needed - modal already hidden
+      },
+    })
+    return // Wait for modal interaction
   }
 
-  // Paste query SQL to SMP textarea (Story 3-2 AC2)
-  const result = await sendToServiceWorker<null>({
-    type: 'PASTE_QUERY',
-    payload: { sql: query.sql },
-  })
-
-  if (!result.success) {
-    showToast(result.error, 'error')
-    return
-  }
-
-  // Show success feedback
-  showToast(`Pasted: ${query.name}`, 'success')
+  // If not destructive, paste immediately
+  await executePaste(query)
 }
 
 /**

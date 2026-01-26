@@ -14,7 +14,7 @@ export interface WarningModalOptions {
   queryName: string
   sql: string
   detection: SqlDetectionResult
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   onCancel: () => void
 }
 
