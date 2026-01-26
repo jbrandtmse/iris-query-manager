@@ -241,17 +241,21 @@ function renderTree(nodes: TreeNode[], container: HTMLElement, level: number): v
   }
 }
 
-// ========== Drag State Handlers (Story 4-4) ==========
+// ========== Drag State Handlers (Story 4-4, 4-5) ==========
 
 /**
- * Handle drag start - update dragging state
+ * Handle drag start - add dragging class to tree view container
+ * This enables the root drop zone visibility via CSS (.tree-view--dragging)
+ * Called when any query or folder starts being dragged.
  */
 function handleDragStart(): void {
   treeViewElement?.classList.add('tree-view--dragging')
 }
 
 /**
- * Handle drag end - reset dragging state
+ * Handle drag end - remove dragging class from tree view container
+ * This hides the root drop zone when drag operation completes.
+ * Called when drag ends (drop or cancel) for any query or folder.
  */
 function handleDragEnd(): void {
   treeViewElement?.classList.remove('tree-view--dragging')
@@ -334,7 +338,9 @@ function createRootDropZone(): HTMLDivElement {
   // Track dragenter/dragleave count to handle child element events
   let dragEnterCount = 0
 
-  // Dragover handler - allow drop
+  // Dragover handler - allow drop (fires continuously during drag)
+  // Note: Only preventDefault and dropEffect are set here - no expensive DOM operations.
+  // Visual feedback is handled by dragenter/dragleave which fire once per boundary.
   rootDropZone.addEventListener('dragover', (e) => {
     e.preventDefault()
     if (e.dataTransfer) {

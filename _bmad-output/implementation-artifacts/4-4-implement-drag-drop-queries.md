@@ -1,6 +1,6 @@
 # Story 4.4: Implement Drag-Drop for Queries
 
-Status: dev-complete
+Status: done
 
 ## Story
 
@@ -548,11 +548,11 @@ N/A - No debugging issues encountered
    - 8 tests for query drag events in tree-item.test.ts
    - 10 tests for root drop zone and tree drag state in tree-view.test.ts
 
-8. **All 545 tests pass** after implementation.
+8. **All tests pass** after implementation.
 
 ### Senior Developer Review (AI)
 
-**Reviewed:** 2026-01-23 by Claude Opus 4.5
+**Review 1:** 2026-01-23 by Claude Opus 4.5
 
 **Review Outcome:** ✅ APPROVED with fixes applied
 
@@ -564,13 +564,34 @@ N/A - No debugging issues encountered
 
 3. **[M3] Dragleave flickering on child elements** - Implemented `dragEnterCount` tracking pattern to prevent visual flickering when dragging over child elements (icon, name span). The class is only removed when the counter reaches zero, not on every dragleave event.
 
-**Tests Added:** 1 new test for M3 fix (total: 546 tests passing)
-
 **Files Modified During Review:**
 - `src/popup/components/tree-view.ts` - M1, M2, M3 fixes
 - `src/popup/components/tree-item.ts` - M2, M3 fixes
 - `src/popup/components/tree-item.test.ts` - Updated tests for M3
 - `src/popup/components/tree-view.test.ts` - Updated tests for M3
+
+---
+
+**Review 2:** 2026-01-25 by Claude Opus 4.5 (SM Agent code-review)
+
+**Review Outcome:** ✅ APPROVED with fixes applied
+
+**Issues Found and Fixed:**
+
+1. **[M1] Double render on folder expansion** - Fixed `handleQueryDrop` in `popup/index.ts` to add target folder to expanded set before refresh, avoiding redundant `toggleFolder` call that triggered a second render
+
+2. **[M2] Memory leak documentation** - Added clarifying comment in `tree-item.ts` explaining that `dragEnterCount` closure is cleaned up when tree items are recreated on render
+
+3. **[M3] Dragover performance concern** - Verified implementation is already efficient (only `preventDefault` and `dropEffect` in dragover handler). Added clarifying comments documenting this design decision.
+
+4. **[L2] Missing JSDoc** - Added JSDoc comments to `handleDragStart` and `handleDragEnd` in `tree-view.ts`
+
+**Files Modified During Review:**
+- `src/popup/index.ts` - M1 fix (optimized folder expansion)
+- `src/popup/components/tree-item.ts` - M2, M3 documentation
+- `src/popup/components/tree-view.ts` - M3 documentation, L2 JSDoc
+
+**All 805 tests passing.**
 
 ### File List
 

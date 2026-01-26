@@ -697,14 +697,13 @@ async function handleQueryDrop(queryId: string, targetFolderId: string | null): 
   showToast(`Moved to: ${folderName}`, 'success')
 
   // Preserve expanded folders state during refresh
+  // Also expand target folder if it was collapsed (before refresh to avoid double render)
   const expandedIds = getExpandedFolders()
-  await loadQueriesAndFolders()
-  setExpandedFolders(expandedIds)
-
-  // Expand target folder if it was collapsed
   if (targetFolderId && !expandedIds.includes(targetFolderId)) {
-    toggleFolder(targetFolderId)
+    expandedIds.push(targetFolderId)
   }
+  setExpandedFolders(expandedIds)
+  await loadQueriesAndFolders()
 }
 
 /**
@@ -734,14 +733,13 @@ async function handleFolderDrop(folderId: string, targetParentId: string | null)
   showToast(`Moved folder to: ${parentName}`, 'success')
 
   // Preserve expanded folders state during refresh
+  // Also expand target parent if it was collapsed (before refresh to avoid double render)
   const expandedIds = getExpandedFolders()
-  await loadQueriesAndFolders()
-  setExpandedFolders(expandedIds)
-
-  // Expand target parent if it was collapsed
   if (targetParentId && !expandedIds.includes(targetParentId)) {
-    toggleFolder(targetParentId)
+    expandedIds.push(targetParentId)
   }
+  setExpandedFolders(expandedIds)
+  await loadQueriesAndFolders()
 }
 
 // ============================================================

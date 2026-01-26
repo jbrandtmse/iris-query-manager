@@ -284,9 +284,13 @@ export function createFolderTreeItem(options: TreeItemFolderOptions): HTMLDivEle
 
   // Track dragenter/dragleave count to handle child element events
   // This prevents flickering when dragging over child elements (icon, name span)
+  // Note: dragEnterCount is scoped to this element's closure. Since tree items are
+  // recreated on every render (not reused), stale closures are automatically cleaned up.
   let dragEnterCount = 0
 
-  // Dragover handler - allow drop
+  // Dragover handler - allow drop (fires continuously during drag)
+  // Note: Only preventDefault and dropEffect are set here - no expensive DOM operations.
+  // Visual feedback is handled by dragenter/dragleave which fire once per boundary.
   item.addEventListener('dragover', (e) => {
     e.preventDefault()
     if (e.dataTransfer) {
