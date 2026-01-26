@@ -49,7 +49,7 @@ development_status:
   epic-1-retrospective: done
 
   # Epic 2: Query Capture & Storage
-  epic-2: in-progress
+  epic-2: done
   2-1-implement-storage-service-data-model: done
   2-2-implement-message-protocol: done
   2-3-create-popup-shell-header: done
@@ -58,7 +58,7 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3: Query Library & Retrieval
-  epic-3: in-progress
+  epic-3: done
   3-1-implement-tree-view-container: done
   3-2-implement-tree-item-component-query-variant: done
   3-3-implement-query-preview-panel: done
@@ -77,7 +77,7 @@ development_status:
   epic-4-retrospective: optional
 
   # Epic 5: Import/Export & Team Sharing
-  epic-5: in-progress
+  epic-5: done
   5-1-implement-export-all-functionality: done
   5-2-implement-export-selected-folder: done
   5-3-implement-import-file-selection-validation: done
@@ -86,7 +86,7 @@ development_status:
   epic-5-retrospective: optional
 
   # Epic 6: Safety & Destructive Query Warnings
-  epic-6: in-progress
+  epic-6: done
   6-1-implement-sql-detection-service: done
   6-2-implement-warning-badge-component: done
   6-3-implement-warning-modal-component: done
